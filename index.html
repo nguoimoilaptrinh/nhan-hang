@@ -147,7 +147,19 @@ body.noscroll { overflow: hidden; }
 .sheet-top { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 14px; text-align: left; }
 .sheet-warn { margin: 8px 0 0; padding: 8px 12px; border-radius: 10px; background: var(--warn-bg); color: var(--warn); font-weight: 600; font-size: 15px; }
 .barcode { margin: 14px 0 10px; padding: 18px 0; background: #fff; border-radius: 12px; }
-.barcode svg { display: block; width: 100%; height: 150px; }
+.barcode svg { display: block; margin: 0 auto; }
+.barcode.size-sej svg { width: 245px; height: 56px; }  /* Đúng kích thước trên trang payment.sej.co.jp */
+.barcode.size-medium svg { width: 300px; max-width: 100%; height: 90px; }
+.barcode.size-large svg { width: 100%; height: 150px; }
+.size-seg { max-width: 360px; margin: 0 auto 14px; }
+
+/* Cài đặt */
+.settings { text-align: left; }
+.settings h2 { margin: 0; font-size: 20px; }
+.settings h3 { margin: 22px 0 8px; font-size: 15px; font-weight: 600; color: var(--muted); }
+.hint { margin: 8px 0; font-size: 13px; color: var(--muted); }
+.switch-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.switch-row input { flex: none; width: 22px; height: 22px; }
 .sheet-num { font-family: var(--mono); font-size: 30px; letter-spacing: 1px; }
 .sheet-pay { margin: 10px 0 2px; font-size: 18px; }
 .sheet-pay b { font-size: 26px; }
@@ -216,7 +228,7 @@ body.noscroll { overflow: hidden; }
   <div id="list" class="list"></div>
   <footer class="foot">
     <span id="updated"></span>
-    <span><button id="reloadBtn" class="link">Tải lại</button> · <button id="lockBtn" class="link">Khoá</button></span>
+    <span><button id="settingsBtn" class="link">Cài đặt</button> · <button id="reloadBtn" class="link">Tải lại</button> · <button id="lockBtn" class="link">Khoá</button></span>
   </footer>
 </main>
 
@@ -227,11 +239,27 @@ body.noscroll { overflow: hidden; }
     <div class="sheet-top"><span>Đưa màn hình cho nhân viên quét</span><button id="sheetClose" class="link">Đóng</button></div>
     <div id="sheetDone" class="sheet-warn" hidden></div>
     <div id="barcode" class="barcode"></div>
+    <div class="seg size-seg" aria-label="Cỡ mã vạch">
+      <button data-size="sej">Như 7-Eleven</button><button data-size="medium">Vừa</button><button data-size="large">Lớn</button>
+    </div>
     <div id="sheetNum" class="sheet-num"></div>
     <div class="sheet-pay">Thanh toán <b id="sheetAmount"></b></div>
     <div id="sheetMeta" class="meta"></div>
     <button id="sheetOk" class="btn-primary">Đã nhận · kiện tiếp theo</button>
     <a id="sheetLink" class="link" target="_blank" rel="noopener noreferrer">Mở trang 7-Eleven (dự phòng)</a>
+  </div>
+</div>
+
+<div id="settings" class="sheet" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" hidden>
+  <div class="sheet-card settings">
+    <div class="sheet-top"><h2 id="settingsTitle">Cài đặt</h2><button id="settingsClose" class="link">Xong</button></div>
+    <h3>Cỡ mã vạch</h3>
+    <div class="seg"><button data-size="sej">Như 7-Eleven</button><button data-size="medium">Vừa</button><button data-size="large">Lớn</button></div>
+    <p class="hint">"Như 7-Eleven" giống hệt kích thước trên trang payment.sej.co.jp (245 × 56). Máy quét khó đọc thì thử cỡ khác. Trên màn hình mã vạch cũng đổi được cỡ.</p>
+    <div id="sizePreview" class="barcode"></div>
+    <h3>Khi quét thùng bằng camera</h3>
+    <label class="switch-row"><span>Kêu "bíp" khi khớp đơn</span><input id="optBeep" type="checkbox"></label>
+    <label class="switch-row"><span>Bấm "Đã nhận" xong tự mở camera cho thùng tiếp theo</span><input id="optRescan" type="checkbox"></label>
   </div>
 </div>
 
@@ -250,7 +278,11 @@ body.noscroll { overflow: hidden; }
 
 <script>
 'use strict';
-const KEY = { key: '7net_key', salt: '7net_salt', blob: '7net_blob', done: '7net_done', store: '7net_store', scanlog: '7net_scanlog' };
+const KEY = {
+  key: '7net_key', salt: '7net_salt', blob: '7net_blob', done: '7net_done', store: '7net_store',
+  scanlog: '7net_scanlog', settings: '7net_settings',
+};
+const DEFAULT_SETTINGS = { size: 'sej', beep: true, autoRescan: true };
 const RELOAD_AFTER_MS = 10 * 60 * 1000;
 const $ = id => document.getElementById(id);
 const storage = {
@@ -528,7 +560,7 @@ const NW7 = {
   '5': '1000010', '6': '0100001', '7': '0100100', '8': '0110000', '9': '1001000', 'A': '0011010',
 };
 function nw7Svg(num) {
-  const text = 'A' + num + 'A', QUIET = 12, WIDE = 3, H = 60;
+  const text = 'A' + num + 'A', QUIET = 15, WIDE = 3, H = 60;  // Lề trắng 15 như ảnh mã trên trang 7-Eleven
   let x = QUIET, bars = '';
   [...text].forEach((ch, i) => {
     [...NW7[ch]].forEach((bit, j) => {
@@ -549,8 +581,8 @@ function showSheet(n, fromScan) {
   if (!o) return;
   sheetSlip = n;
   sheetFromScan = !!fromScan;
-  // Mở từ máy quét -> bấm "Đã nhận" sẽ mở lại camera ngay cho thùng tiếp theo
-  $('sheetOk').textContent = sheetFromScan ? 'Đã nhận · quét thùng tiếp' : 'Đã nhận · kiện tiếp theo';
+  // Mở từ máy quét -> bấm "Đã nhận" sẽ mở lại camera ngay cho thùng tiếp theo (nếu bật trong Cài đặt)
+  $('sheetOk').textContent = sheetFromScan && settings.autoRescan ? 'Đã nhận · quét thùng tiếp' : 'Đã nhận · kiện tiếp theo';
   $('barcode').innerHTML = nw7Svg(n);
   $('sheetNum').textContent = fmtSlip(n);
   $('sheetAmount').textContent = o.a ? '¥' + o.a.toLocaleString('ja-JP') : '—';
@@ -573,7 +605,7 @@ function closeSheet() {
   if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
 }
 $('sheetOk').addEventListener('click', () => {
-  const n = sheetSlip, rescan = sheetFromScan;
+  const n = sheetSlip, rescan = sheetFromScan && settings.autoRescan;
   if (n && !done[n]) { done[n] = Date.now(); saveDone(); toast('Đã đánh dấu nhận ' + n.slice(-7), n); }
   closeSheet();
   $('q').value = '';
@@ -581,6 +613,40 @@ $('sheetOk').addEventListener('click', () => {
   if (rescan) openScanner(); else $('q').focus();
 });
 $('sheetClose').addEventListener('click', closeSheet);
+
+// ---------- Cài đặt (lưu riêng trên máy này) ----------
+let settings = readSettings();
+function readSettings() {
+  try { return { ...DEFAULT_SETTINGS, ...JSON.parse(storage.get(KEY.settings) || '{}') }; } catch (e) { return { ...DEFAULT_SETTINGS }; }
+}
+function setSetting(name, value) {
+  settings[name] = value;
+  storage.set(KEY.settings, JSON.stringify(settings));
+  applySettings();
+}
+function applySettings() {
+  $('barcode').className = $('sizePreview').className = 'barcode size-' + settings.size;
+  document.querySelectorAll('[data-size]').forEach(b => b.classList.toggle('on', b.dataset.size === settings.size));
+  $('optBeep').checked = settings.beep;
+  $('optRescan').checked = settings.autoRescan;
+  if (sheetSlip) $('sheetOk').textContent = sheetFromScan && settings.autoRescan ? 'Đã nhận · quét thùng tiếp' : 'Đã nhận · kiện tiếp theo';
+}
+function openSettings() {
+  const sample = data && data.orders.length ? data.orders[0].n : '0000000000000';
+  $('sizePreview').innerHTML = nw7Svg(sample);
+  applySettings();
+  $('settings').hidden = false;
+  document.body.classList.add('noscroll');
+}
+function closeSettings() {
+  $('settings').hidden = true;
+  document.body.classList.remove('noscroll');
+}
+$('settingsBtn').addEventListener('click', openSettings);
+$('settingsClose').addEventListener('click', closeSettings);
+$('optBeep').addEventListener('change', () => setSetting('beep', $('optBeep').checked));
+$('optRescan').addEventListener('change', () => setSetting('autoRescan', $('optRescan').checked));
+applySettings();
 
 // ---------- Quét mã vạch trên thùng bằng camera (zxing-wasm: đọc mọi mã trong khung hình cùng lúc) ----------
 const SCAN_OPTIONS = {
@@ -685,6 +751,7 @@ function drawMarks(marks, scale) {
 }
 
 function beep() {
+  if (!settings.beep) return;
   try {
     const osc = audioCtx.createOscillator();
     osc.frequency.value = 1500;
@@ -824,13 +891,20 @@ document.addEventListener('visibilitychange', () => {
 });
 document.addEventListener('keydown', ev => {
   if (ev.key !== 'Escape') return;
-  if (!$('scanner').hidden) closeScanner(); else if (!$('sheet').hidden) closeSheet();
+  if (!$('scanner').hidden) closeScanner();
+  else if (!$('sheet').hidden) closeSheet();
+  else if (!$('settings').hidden) closeSettings();
 });
 
 document.addEventListener('click', ev => {
   const show = ev.target.closest('[data-show]');
   if (show) {
     showSheet(show.dataset.show);
+    return;
+  }
+  const size = ev.target.closest('[data-size]');
+  if (size) {
+    setSetting('size', size.dataset.size);
     return;
   }
   const toggle = ev.target.closest('[data-toggle]');
