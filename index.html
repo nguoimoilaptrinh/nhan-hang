@@ -59,6 +59,8 @@ button { cursor: pointer; }
 .remember input { width: 20px; height: 20px; }
 .msg { min-height: 22px; margin: 12px 0 0; color: var(--bad); font-size: 15px; }
 
+#app { max-width: 640px; margin: 0 auto; }
+
 /* Thanh trên cùng */
 .top { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: calc(env(safe-area-inset-top) + 10px) 0 8px; }
 .stores { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin-bottom: 10px; }
@@ -406,8 +408,11 @@ function render() {
   $('list').innerHTML = rows.length ? rows.map(o => rowHtml(o, q)).join('') : emptyHtml(q);
   $('list').hidden = q && rows.length === 1;
 
-  $('banner').hidden = !offline;
-  $('banner').textContent = 'Không tải được bản mới, đang dùng dữ liệu đã lưu.';
+  const notes = [];
+  if (data.sample) notes.push('Đây là DỮ LIỆU MẪU để thử, không phải đơn thật. Chạy main.py sẽ thay bằng đơn thật.');
+  if (offline) notes.push('Không tải được bản mới, đang dùng dữ liệu đã lưu.');
+  $('banner').hidden = !notes.length;
+  $('banner').textContent = notes.join(' ');
   $('updated').textContent = `Dữ liệu ${data.updated} · ${data.orders.length} đơn`;
 }
 
