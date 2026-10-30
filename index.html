@@ -1,0 +1,484 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Nhận hàng">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#f6f5f1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1c1c1b" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="icon.png">
+<title>Nhận hàng 7net</title>
+<style>
+:root {
+  --bg: #f6f5f1; --card: #ffffff; --text: #1f1e1c; --muted: #6b6a65; --faint: #9c9a93; --line: #e2e0d8;
+  --fill: #185fa5; --on-fill: #ffffff; --chip-on: #e6f1fb; --chip-on-text: #0c447c;
+  --ok: #3b6d11; --ok-bg: #eaf3de; --warn: #854f0b; --warn-bg: #faeeda; --bad: #a32d2d; --bad-bg: #fcebeb;
+  --hl: rgba(239, 159, 39, .35);
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1c1c1b; --card: #2a2a28; --text: #f1efe8; --muted: #b4b2a9; --faint: #85837c; --line: #3c3b38;
+    --fill: #378add; --chip-on: #0c447c; --chip-on-text: #e6f1fb;
+    --ok: #c0dd97; --ok-bg: #27500a; --warn: #fac775; --warn-bg: #633806; --bad: #f7c1c1; --bad-bg: #791f1f;
+    --hl: rgba(239, 159, 39, .45);
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 16px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  padding: 0 max(12px, env(safe-area-inset-right)) env(safe-area-inset-bottom) max(12px, env(safe-area-inset-left));
+}
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+.btn-primary {
+  display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 54px;
+  border: 0; border-radius: 12px; background: var(--fill); color: var(--on-fill);
+  font-size: 18px; font-weight: 600; text-decoration: none;
+}
+.link { background: none; border: 0; padding: 8px 4px; color: var(--fill); font-size: 15px; }
+
+/* Màn hình khoá */
+.lock { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+.lock-card { width: 100%; max-width: 360px; text-align: center; }
+.lock-card img { border-radius: 14px; }
+.lock-card h1 { font-size: 22px; font-weight: 600; margin: 12px 0 20px; }
+.lock-card input[type=password] {
+  width: 100%; height: 54px; padding: 0 16px; font-size: 20px; text-align: center;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--card);
+}
+.remember { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 14px 0; color: var(--muted); font-size: 15px; }
+.remember input { width: 20px; height: 20px; }
+.msg { min-height: 22px; margin: 12px 0 0; color: var(--bad); font-size: 15px; }
+
+/* Thanh trên cùng */
+.top { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: calc(env(safe-area-inset-top) + 10px) 0 8px; }
+.stores { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin-bottom: 10px; }
+.stores::-webkit-scrollbar { display: none; }
+.chip {
+  flex: none; min-height: 36px; padding: 6px 14px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--card); color: var(--muted); font-size: 15px; white-space: nowrap;
+}
+.chip b { font-weight: 600; margin-left: 4px; }
+.chip.on { background: var(--chip-on); color: var(--chip-on-text); border-color: transparent; }
+.search { position: relative; }
+.search input {
+  width: 100%; height: 56px; padding: 0 52px 0 16px; border-radius: 14px;
+  border: 2px solid var(--line); background: var(--card);
+  font-family: var(--mono); font-size: 24px; letter-spacing: 1px;
+}
+.search input:focus { outline: none; border-color: var(--fill); }
+.search input::placeholder { font-family: -apple-system, sans-serif; font-size: 17px; letter-spacing: 0; color: var(--faint); }
+.clear {
+  position: absolute; right: 8px; top: 8px; width: 40px; height: 40px; border: 0; border-radius: 50%;
+  background: var(--line); color: var(--muted); font-size: 22px; line-height: 1;
+}
+.filters { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
+.seg { display: flex; flex: 1; background: var(--line); border-radius: 10px; padding: 2px; }
+.seg button { flex: 1; min-height: 36px; border: 0; border-radius: 8px; background: none; color: var(--muted); font-size: 14px; }
+.seg button.on { background: var(--card); color: var(--text); font-weight: 600; }
+.filters select { max-width: 40%; min-height: 40px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); padding: 0 8px; font-size: 14px; }
+
+/* Danh sách */
+.banner { margin: 4px 0 8px; padding: 10px 12px; border-radius: 10px; background: var(--warn-bg); color: var(--warn); font-size: 14px; }
+.num { font-family: var(--mono); font-size: 24px; letter-spacing: .5px; white-space: nowrap; }
+.num .pre { font-size: .6em; color: var(--faint); letter-spacing: 0; }
+.num .gap { margin-left: .3em; }
+.num .m { background: var(--hl); border-radius: 3px; }
+.hit { background: var(--card); border: 2px solid var(--fill); border-radius: 16px; padding: 14px; margin: 6px 0 12px; }
+.hit .num { font-size: 32px; margin: 6px 0 14px; }
+.hit.is-done { border-color: var(--warn); }
+.hit-meta { font-size: 14px; color: var(--muted); }
+.hit.is-done .hit-meta { color: var(--warn); font-weight: 600; }
+.list { background: var(--card); border-radius: 14px; overflow: hidden; }
+.row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.row:last-child { border-bottom: 0; }
+.row-main { flex: 1; min-width: 0; }
+.meta { font-size: 13px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row.is-done .num, .row.is-done .meta { color: var(--faint); text-decoration: line-through; }
+.row.is-done .num .m { background: none; }
+.open-sm {
+  flex: none; display: flex; align-items: center; justify-content: center; min-width: 52px; height: 40px; padding: 0 10px;
+  border-radius: 10px; background: var(--chip-on); color: var(--chip-on-text); font-size: 15px; font-weight: 600; text-decoration: none;
+}
+.check {
+  flex: none; width: 40px; height: 40px; border-radius: 50%; border: 1.5px solid var(--line);
+  background: none; color: var(--faint); font-size: 20px; line-height: 1;
+}
+.check.on { background: var(--ok-bg); border-color: transparent; color: var(--ok); }
+.tag { display: inline-block; padding: 0 6px; border-radius: 6px; font-weight: 600; }
+.tag.warn { background: var(--warn-bg); color: var(--warn); }
+.tag.bad { background: var(--bad-bg); color: var(--bad); }
+.empty { padding: 28px 16px; text-align: center; color: var(--muted); }
+.empty .chip { margin-top: 12px; }
+.foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 12px 2px 24px; font-size: 13px; color: var(--muted); }
+.toast {
+  position: fixed; left: 12px; right: 12px; bottom: calc(env(safe-area-inset-bottom) + 16px); z-index: 10;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  max-width: 480px; margin: 0 auto; padding: 8px 8px 8px 16px; border-radius: 12px;
+  background: var(--text); color: var(--bg); font-size: 15px;
+}
+.toast .link { color: var(--bg); font-weight: 600; text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<main id="lock" class="lock" hidden>
+  <div class="lock-card">
+    <img src="icon.png" alt="" width="64" height="64">
+    <h1>Nhận hàng 7net</h1>
+    <form id="lockForm">
+      <input type="text" name="username" value="7net" autocomplete="username" hidden>
+      <input id="pin" type="password" name="password" autocomplete="current-password" placeholder="Nhập PIN" aria-label="PIN">
+      <label class="remember"><input id="remember" type="checkbox" checked> Nhớ trên máy này</label>
+      <button id="unlockBtn" type="submit" class="btn-primary">Mở khoá</button>
+      <p id="lockMsg" class="msg" role="alert"></p>
+    </form>
+  </div>
+</main>
+
+<main id="app" hidden>
+  <header class="top">
+    <div id="stores" class="stores"></div>
+    <div class="search">
+      <input id="q" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" autocorrect="off" spellcheck="false"
+             placeholder="Gõ số trên thùng" aria-label="Tìm theo số trên thùng">
+      <button id="clearQ" class="clear" aria-label="Xoá ô tìm" hidden>×</button>
+    </div>
+    <div id="filters" class="filters">
+      <div class="seg" id="seg">
+        <button data-filter="todo" class="on">Chưa nhận</button><button data-filter="all">Tất cả</button><button data-filter="done">Đã nhận</button>
+      </div>
+      <select id="prod" aria-label="Lọc sản phẩm" hidden></select>
+    </div>
+  </header>
+  <div id="banner" class="banner" hidden></div>
+  <div id="hit"></div>
+  <div id="list" class="list"></div>
+  <footer class="foot">
+    <span id="updated"></span>
+    <span><button id="reloadBtn" class="link">Tải lại</button> · <button id="lockBtn" class="link">Khoá</button></span>
+  </footer>
+</main>
+
+<div id="toast" class="toast" role="status" hidden><span id="toastText"></span><button id="toastUndo" class="link">Hoàn tác</button></div>
+
+<script>
+'use strict';
+const KEY = { key: '7net_key', salt: '7net_salt', blob: '7net_blob', done: '7net_done', store: '7net_store' };
+const RELOAD_AFTER_MS = 10 * 60 * 1000;
+const $ = id => document.getElementById(id);
+const storage = {
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+  del(k) { try { localStorage.removeItem(k); } catch (e) {} },
+};
+
+let blob = null, cryptoKey = null, data = null, offline = false, lastFetch = 0;
+let done = readDone();
+const view = { store: storage.get(KEY.store) || '', filter: 'todo', prod: '' };
+
+// ---------- Tiện ích ----------
+const b64d = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+const b64e = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const digits = s => s.normalize('NFKC').replace(/\D/g, '');
+const fmtTime = ms => { const d = new Date(ms); return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`; };
+
+function readDone() {
+  try { return JSON.parse(storage.get(KEY.done) || '{}') || {}; } catch (e) { return {}; }
+}
+function saveDone() { storage.set(KEY.done, JSON.stringify(done)); }
+
+// ---------- Tải & giải mã ----------
+async function fetchBlob() {
+  try {
+    const res = await fetch('data.json?t=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const text = await res.text();
+    const parsed = JSON.parse(text);
+    storage.set(KEY.blob, text);
+    lastFetch = Date.now();
+    return { blob: parsed, offline: false };
+  } catch (err) {
+    const cached = storage.get(KEY.blob);
+    if (cached) return { blob: JSON.parse(cached), offline: true };
+    throw err;
+  }
+}
+
+async function deriveKey(pin, b) {
+  const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pin), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt: b64d(b.salt), iterations: b.iter, hash: 'SHA-256' },
+    base, { name: 'AES-GCM', length: 256 }, true, ['decrypt']);
+}
+
+async function decrypt(key, b) {
+  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64d(b.iv) }, key, b64d(b.ct));
+  return JSON.parse(new TextDecoder().decode(plain));
+}
+
+async function savedKey(b) {
+  const raw = storage.get(KEY.key);
+  if (!raw || storage.get(KEY.salt) !== b.salt) return null;
+  return crypto.subtle.importKey('raw', b64d(raw), 'AES-GCM', true, ['decrypt']);
+}
+
+async function start() {
+  if (!window.crypto || !crypto.subtle) { showLock('Trình duyệt không hỗ trợ giải mã. Hãy mở bằng link https.'); return; }
+  try {
+    ({ blob, offline } = await fetchBlob());
+  } catch (err) {
+    showLock('Không tải được dữ liệu. Kiểm tra mạng rồi mở lại.'); return;
+  }
+  try {
+    cryptoKey = cryptoKey || await savedKey(blob);
+    if (cryptoKey) { data = await decrypt(cryptoKey, blob); showApp(); return; }
+  } catch (err) {
+    cryptoKey = null; storage.del(KEY.key);
+  }
+  showLock('');
+}
+
+async function reload(silent) {
+  try {
+    ({ blob, offline } = await fetchBlob());
+  } catch (err) {
+    if (!silent) toast('Không tải được dữ liệu, kiểm tra mạng');
+    return;
+  }
+  try {
+    data = await decrypt(cryptoKey, blob);
+  } catch (err) {
+    cryptoKey = null; storage.del(KEY.key);
+    showLock('PIN đã đổi, hãy nhập lại.');
+    return;
+  }
+  showApp();
+  if (!silent) toast(offline ? 'Không có mạng, đang dùng bản đã lưu' : 'Đã tải dữ liệu mới');
+}
+
+// ---------- Màn hình ----------
+function showLock(msg) {
+  $('app').hidden = true; $('lock').hidden = false;
+  $('lockMsg').textContent = msg || '';
+}
+
+function showApp() {
+  $('lock').hidden = true; $('app').hidden = false;
+  const live = new Set(data.orders.map(o => o.n));
+  let changed = false;
+  for (const n in done) if (!live.has(n)) { delete done[n]; changed = true; }
+  if (changed) saveDone();
+  render();
+}
+
+$('lockForm').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  const pin = $('pin').value.trim();
+  if (!pin) { $('lockMsg').textContent = 'Nhập PIN trước đã'; return; }
+  if (!blob) { await start(); if (!blob) return; }
+  $('unlockBtn').textContent = 'Đang giải mã…';
+  try {
+    const key = await deriveKey(pin, blob);
+    data = await decrypt(key, blob);
+    cryptoKey = key;
+    if ($('remember').checked) {
+      storage.set(KEY.key, b64e(await crypto.subtle.exportKey('raw', key)));
+      storage.set(KEY.salt, blob.salt);
+    }
+    $('pin').value = '';
+    showApp();
+  } catch (err) {
+    $('lockMsg').textContent = 'PIN không đúng';
+  } finally {
+    $('unlockBtn').textContent = 'Mở khoá';
+  }
+});
+$('pin').addEventListener('input', () => { $('lockMsg').textContent = ''; });
+
+// ---------- Hiển thị ----------
+function numHtml(n, q) {
+  const at = q ? n.lastIndexOf(q) : -1;
+  let html = '', cur = null, buf = '';
+  for (let i = 0; i < n.length; i++) {
+    const cls = [i < n.length - 7 ? 'pre' : '', i === n.length - 2 ? 'gap' : '', at >= 0 && i >= at && i < at + q.length ? 'm' : '']
+      .filter(Boolean).join(' ');
+    if (cls !== cur) { if (cur !== null) html += `<span class="${cur}">${buf}</span>`; cur = cls; buf = ''; }
+    buf += n[i];
+  }
+  return html + `<span class="${cur}">${buf}</span>`;
+}
+
+function daysUntil(iso) {
+  const [y, m, d] = iso.split('-').map(Number);
+  const t = new Date();
+  return Math.round((Date.UTC(y, m - 1, d) - Date.UTC(t.getFullYear(), t.getMonth(), t.getDate())) / 86400000);
+}
+
+function deadlineHtml(o) {
+  if (!o.e) return o.er ? 'hạn ' + esc(o.er) : 'chưa rõ hạn';
+  const days = daysUntil(o.e), md = o.e.slice(5).replace('-', '/');
+  if (days < 0) return `<span class="tag bad">quá hạn ${md}</span>`;
+  if (days === 0) return '<span class="tag bad">hết hạn hôm nay</span>';
+  if (days === 1) return `<span class="tag warn">hạn ngày mai</span>`;
+  return 'hạn ' + md;
+}
+
+function openLink(o, label) {
+  if (!o.u) return label ? '<div class="empty">Đơn này không có link 払込票URL</div>' : '';
+  return `<a class="${label ? 'btn-primary' : 'open-sm'}" href="${esc(o.u)}" target="_blank" rel="noopener noreferrer"
+             data-open="${esc(o.n)}" aria-label="Mở mã vạch">${label || 'Mở'}</a>`;
+}
+
+function rowHtml(o, q) {
+  const d = done[o.n];
+  return `<div class="row${d ? ' is-done' : ''}">
+    <div class="row-main">
+      <div class="num">${numHtml(o.n, q)}</div>
+      <div class="meta">${esc(o.ps)} · ${deadlineHtml(o)}${o.a ? ' · ¥' + o.a.toLocaleString('ja-JP') : ''}${d ? ' · nhận lúc ' + fmtTime(d) : ''}</div>
+    </div>
+    ${openLink(o)}
+    <button class="check${d ? ' on' : ''}" data-toggle="${esc(o.n)}" aria-label="${d ? 'Bỏ đánh dấu' : 'Đánh dấu đã nhận'}">✓</button>
+  </div>`;
+}
+
+function hitHtml(o, q) {
+  const d = done[o.n];
+  return `<div class="hit${d ? ' is-done' : ''}">
+    <div class="hit-meta">${d ? 'Kiện này đã đánh dấu nhận lúc ' + fmtTime(d) : 'Khớp 1 kiện'} · ${esc(o.ps)} · ${deadlineHtml(o)}</div>
+    <div class="num">${numHtml(o.n, q)}</div>
+    ${openLink(o, d ? 'Mở lại mã vạch' : 'Mở mã vạch')}
+  </div>`;
+}
+
+function storeStats() {
+  const map = new Map();
+  for (const o of data.orders) {
+    if (!map.has(o.s)) map.set(o.s, { name: o.s, total: 0, left: 0 });
+    const s = map.get(o.s);
+    s.total++;
+    if (!done[o.n]) s.left++;
+  }
+  return [...map.values()];
+}
+
+function render() {
+  const stats = storeStats();
+  if (!stats.some(s => s.name === view.store)) {
+    view.store = stats.length ? [...stats].sort((a, b) => b.left - a.left)[0].name : '';
+  }
+  $('stores').innerHTML = stats.map(s =>
+    `<button class="chip${s.name === view.store ? ' on' : ''}" data-store="${esc(s.name)}">${esc(s.name)}<b>${s.left}/${s.total}</b></button>`).join('');
+
+  const inStore = data.orders.filter(o => o.s === view.store);
+  const prods = [...new Set(inStore.map(o => o.ps))];
+  if (!prods.includes(view.prod)) view.prod = '';
+  $('prod').hidden = prods.length < 2;
+  $('prod').innerHTML = '<option value="">Tất cả SP</option>' +
+    prods.map(p => `<option value="${esc(p)}"${p === view.prod ? ' selected' : ''}>${esc(p)}</option>`).join('');
+
+  const q = digits($('q').value);
+  $('clearQ').hidden = !q;
+  $('filters').hidden = !!q;
+
+  let rows;
+  if (q) {
+    // Khi đang tìm: tìm trong cả cửa hàng, kiện chưa nhận lên trước, rồi tới kiện có đuôi khớp số vừa gõ
+    rows = inStore.filter(o => o.n.includes(q))
+      .sort((a, b) => (!!done[a.n] - !!done[b.n]) || (b.n.endsWith(q) - a.n.endsWith(q)));
+  } else {
+    rows = inStore
+      .filter(o => !view.prod || o.ps === view.prod)
+      .filter(o => view.filter === 'all' || (view.filter === 'done') === !!done[o.n]);
+  }
+
+  $('hit').innerHTML = q && rows.length === 1 ? hitHtml(rows[0], q) : '';
+  $('list').innerHTML = rows.length ? rows.map(o => rowHtml(o, q)).join('') : emptyHtml(q);
+  $('list').hidden = q && rows.length === 1;
+
+  $('banner').hidden = !offline;
+  $('banner').textContent = 'Không tải được bản mới, đang dùng dữ liệu đã lưu.';
+  $('updated').textContent = `Dữ liệu ${data.updated} · ${data.orders.length} đơn`;
+}
+
+function emptyHtml(q) {
+  if (!q) return '<div class="empty">Không có kiện nào ở mục này</div>';
+  const elsewhere = data.orders.filter(o => o.s !== view.store && o.n.includes(q));
+  if (!elsewhere.length) return '<div class="empty">Không có kiện nào khớp số này</div>';
+  const other = elsewhere[0].s;
+  return `<div class="empty">Không có ở cửa hàng này, nhưng có ${elsewhere.length} kiện khớp ở
+          <br><button class="chip" data-store="${esc(other)}">Chuyển sang ${esc(other)}</button></div>`;
+}
+
+// ---------- Thao tác ----------
+let toastTimer = null, undoSlip = null;
+function toast(text, slip) {
+  $('toastText').textContent = text;
+  $('toastUndo').hidden = !slip;
+  undoSlip = slip || null;
+  $('toast').hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { $('toast').hidden = true; undoSlip = null; }, 6000);
+}
+
+$('toastUndo').addEventListener('click', () => {
+  if (undoSlip) { delete done[undoSlip]; saveDone(); render(); }
+  $('toast').hidden = true;
+});
+
+document.addEventListener('click', ev => {
+  const open = ev.target.closest('[data-open]');
+  if (open) {
+    const n = open.dataset.open;
+    if (!done[n]) { done[n] = Date.now(); saveDone(); toast('Đã đánh dấu nhận ' + n.slice(-7), n); }
+    // Chờ link mở xong rồi mới xoá ô tìm để sẵn sàng cho thùng tiếp theo
+    setTimeout(() => { $('q').value = ''; render(); }, 400);
+    return;
+  }
+  const toggle = ev.target.closest('[data-toggle]');
+  if (toggle) {
+    const n = toggle.dataset.toggle;
+    if (done[n]) delete done[n]; else done[n] = Date.now();
+    saveDone(); render();
+    return;
+  }
+  const chip = ev.target.closest('[data-store]');
+  if (chip) {
+    view.store = chip.dataset.store; storage.set(KEY.store, view.store);
+    render();
+    return;
+  }
+  const seg = ev.target.closest('[data-filter]');
+  if (seg) {
+    view.filter = seg.dataset.filter;
+    document.querySelectorAll('#seg button').forEach(b => b.classList.toggle('on', b === seg));
+    render();
+  }
+});
+
+$('q').addEventListener('input', () => { render(); window.scrollTo(0, 0); });
+$('clearQ').addEventListener('click', () => { $('q').value = ''; render(); $('q').focus(); });
+$('prod').addEventListener('change', () => { view.prod = $('prod').value; render(); });
+$('reloadBtn').addEventListener('click', () => reload(false));
+$('lockBtn').addEventListener('click', () => {
+  cryptoKey = null; data = null; storage.del(KEY.key);
+  showLock('');
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && cryptoKey && Date.now() - lastFetch > RELOAD_AFTER_MS) reload(true);
+});
+
+start();
+</script>
+</body>
+</html>
