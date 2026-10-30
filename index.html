@@ -112,6 +112,11 @@ button { cursor: pointer; }
 .meta { font-size: 13px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row.is-done .num, .row.is-done .meta { color: var(--faint); text-decoration: line-through; }
 .row.is-done .num .m { background: none; }
+.meta .got { color: var(--ok); font-weight: 600; }
+.row.is-done .meta .got { text-decoration: none; display: inline-block; }
+/* Tab Đã nhận: không gạch ngang để dễ đọc lại số */
+.list.done-tab .row.is-done .num, .list.done-tab .row.is-done .meta { color: inherit; text-decoration: none; }
+.list.done-tab .row.is-done .meta { color: var(--muted); }
 .open-sm {
   flex: none; display: flex; align-items: center; justify-content: center; min-width: 52px; height: 40px; padding: 0 10px;
   border: 0; border-radius: 10px; background: var(--chip-on); color: var(--chip-on-text); font-size: 15px; font-weight: 600;
@@ -126,7 +131,8 @@ button { cursor: pointer; }
 .tag.bad { background: var(--bad-bg); color: var(--bad); }
 .empty { padding: 28px 16px; text-align: center; color: var(--muted); }
 .empty .chip { margin-top: 12px; }
-.foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 12px 2px 24px; font-size: 13px; color: var(--muted); }
+.foot { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 8px; padding: 12px 2px 24px; font-size: 13px; color: var(--muted); }
+.foot > span:last-child { white-space: nowrap; }
 .toast {
   position: fixed; left: 12px; right: 12px; bottom: calc(env(safe-area-inset-bottom) + 16px); z-index: 10;
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
@@ -300,7 +306,10 @@ const b64d = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
 const b64e = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const digits = s => s.normalize('NFKC').replace(/\D/g, '');
-const fmtTime = ms => { const d = new Date(ms); return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`; };
+const fmtTime = ms => {
+  const d = new Date(ms), hm = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return d.toDateString() === new Date().toDateString() ? hm : `${d.getMonth() + 1}/${d.getDate()} ${hm}`;
+};
 
 function readDone() {
   try { return JSON.parse(storage.get(KEY.done) || '{}') || {}; } catch (e) { return {}; }
@@ -454,7 +463,7 @@ function rowHtml(o, q) {
   return `<div class="row${d ? ' is-done' : ''}">
     <div class="row-main">
       <div class="num">${numHtml(o.n, q)}</div>
-      <div class="meta">${esc(o.ps)} · ${deadlineHtml(o)}${o.a ? ' · ¥' + o.a.toLocaleString('ja-JP') : ''}${d ? ' · nhận lúc ' + fmtTime(d) : ''}</div>
+      <div class="meta">${d ? '<b class="got">✓ ' + fmtTime(d) + '</b> · ' : ''}${esc(o.ps)} · ${deadlineHtml(o)}${o.a ? ' · ¥' + o.a.toLocaleString('ja-JP') : ''}</div>
     </div>
     ${showBtn(o)}
     <button class="check${d ? ' on' : ''}" data-toggle="${esc(o.n)}" aria-label="${d ? 'Bỏ đánh dấu' : 'Đánh dấu đã nhận'}">✓</button>
@@ -509,6 +518,8 @@ function render() {
     rows = inStore
       .filter(o => !view.prod || o.ps === view.prod)
       .filter(o => view.filter === 'all' || (view.filter === 'done') === !!done[o.n]);
+    // Tab Đã nhận: kiện vừa nhận lên đầu, để lỡ bấm "Đã nhận" mà POS lỗi thì mở lại mã vạch cho nhanh
+    if (view.filter === 'done') rows.sort((a, b) => done[b.n] - done[a.n]);
   }
 
   const scope = inStore.filter(o => !view.prod || o.ps === view.prod);
@@ -520,6 +531,7 @@ function render() {
   $('hit').innerHTML = q && rows.length === 1 ? hitHtml(rows[0], q) : '';
   $('list').innerHTML = rows.length ? rows.map(o => rowHtml(o, q)).join('') : emptyHtml(q);
   $('list').hidden = q && rows.length === 1;
+  $('list').classList.toggle('done-tab', !q && view.filter === 'done');
 
   const notes = [];
   if (data.sample) notes.push('Đây là DỮ LIỆU MẪU để thử, không phải đơn thật. Chạy main.py sẽ thay bằng đơn thật.');
