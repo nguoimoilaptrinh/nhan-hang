@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Mã vạch mẫu</title>
+<style>
+:root { --bg: #ffffff; --text: #1f1e1c; --muted: #6b6a65; --warn: #854f0b; --warn-bg: #faeeda; --fill: #185fa5; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #1c1c1b; --text: #f1efe8; --muted: #b4b2a9; --warn: #fac775; --warn-bg: #633806; --fill: #378add; }
+}
+body { margin: 0; padding: 24px 16px; background: var(--bg); color: var(--text); text-align: center;
+       font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+.warn { display: inline-block; padding: 6px 12px; border-radius: 8px; background: var(--warn-bg); color: var(--warn); font-weight: 600; }
+.bars { display: flex; justify-content: center; height: 110px; margin: 28px auto 10px; padding: 12px; background: #fff; border-radius: 8px; max-width: 340px; }
+.bars span { display: block; height: 100%; background: #111; }
+.num { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 26px; letter-spacing: 2px; }
+p { color: var(--muted); }
+button { margin-top: 20px; min-height: 50px; padding: 0 28px; border: 0; border-radius: 12px; background: var(--fill); color: #fff; font: inherit; font-weight: 600; }
+</style>
+</head>
+<body>
+  <div class="warn">MẪU · không phải mã nhận hàng thật</div>
+  <div id="bars" class="bars"></div>
+  <div id="num" class="num"></div>
+  <p>Đây là trang giả lập 払込票URL để thử luồng bấm "Mở mã vạch".</p>
+  <button id="back">Quay lại danh sách</button>
+<script>
+const n = (new URLSearchParams(location.search).get('n') || '').replace(/\D/g, '');
+document.getElementById('num').textContent = n;
+// Vạch trang trí sinh từ các chữ số, chỉ để nhìn giống mã vạch
+document.getElementById('bars').innerHTML = [...n].map((d, i) =>
+  `<span style="width:${1 + (+d % 3)}px;margin-right:${1 + ((+d + i) % 4)}px"></span><span style="width:${1 + ((+d + 1) % 2)}px;margin-right:2px"></span>`).join('');
+document.getElementById('back').addEventListener('click', () => {
+  if (history.length > 1) history.back(); else window.close();
+});
+</script>
+</body>
+</html>
