@@ -71,7 +71,12 @@ button { cursor: pointer; }
 }
 .chip b { font-weight: 600; margin-left: 4px; }
 .chip.on { background: var(--chip-on); color: var(--chip-on-text); border-color: transparent; }
-.search { position: relative; }
+.search-row { display: flex; gap: 8px; }
+.search { position: relative; flex: 1; min-width: 0; }
+.scan-btn {
+  flex: none; width: 56px; height: 56px; border: 0; border-radius: 14px;
+  background: var(--fill); color: var(--on-fill); display: flex; align-items: center; justify-content: center;
+}
 .search input {
   width: 100%; height: 56px; padding: 0 52px 0 16px; border-radius: 14px;
   border: 2px solid var(--line); background: var(--card);
@@ -109,7 +114,7 @@ button { cursor: pointer; }
 .row.is-done .num .m { background: none; }
 .open-sm {
   flex: none; display: flex; align-items: center; justify-content: center; min-width: 52px; height: 40px; padding: 0 10px;
-  border-radius: 10px; background: var(--chip-on); color: var(--chip-on-text); font-size: 15px; font-weight: 600; text-decoration: none;
+  border: 0; border-radius: 10px; background: var(--chip-on); color: var(--chip-on-text); font-size: 15px; font-weight: 600;
 }
 .check {
   flex: none; width: 40px; height: 40px; border-radius: 50%; border: 1.5px solid var(--line);
@@ -129,6 +134,36 @@ button { cursor: pointer; }
   background: var(--text); color: var(--bg); font-size: 15px;
 }
 .toast .link { color: var(--bg); font-weight: 600; text-decoration: underline; }
+.summary { margin: 2px 2px 8px; font-size: 14px; color: var(--muted); }
+.summary b { color: var(--text); }
+body.noscroll { overflow: hidden; }
+
+/* Màn hình mã vạch */
+.sheet {
+  position: fixed; inset: 0; z-index: 20; overflow-y: auto; background: var(--bg);
+  padding: calc(env(safe-area-inset-top) + 12px) max(16px, env(safe-area-inset-right)) calc(env(safe-area-inset-bottom) + 16px) max(16px, env(safe-area-inset-left));
+}
+.sheet-card { max-width: 520px; margin: 0 auto; text-align: center; }
+.sheet-top { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 14px; text-align: left; }
+.sheet-warn { margin: 8px 0 0; padding: 8px 12px; border-radius: 10px; background: var(--warn-bg); color: var(--warn); font-weight: 600; font-size: 15px; }
+.barcode { margin: 14px 0 10px; padding: 18px 0; background: #fff; border-radius: 12px; }
+.barcode svg { display: block; width: 100%; height: 150px; }
+.sheet-num { font-family: var(--mono); font-size: 30px; letter-spacing: 1px; }
+.sheet-pay { margin: 10px 0 2px; font-size: 18px; }
+.sheet-pay b { font-size: 26px; }
+.sheet .meta { white-space: normal; margin-bottom: 18px; }
+.sheet .link { display: inline-block; margin-top: 12px; }
+
+/* Màn hình quét */
+.scanner { position: fixed; inset: 0; z-index: 30; background: #000; color: #fff; display: flex; flex-direction: column; }
+.scanner video { flex: 1; width: 100%; min-height: 0; object-fit: cover; }
+.scan-frame {
+  position: absolute; left: 8%; right: 8%; top: 32%; height: 22%; border: 3px solid rgba(255, 255, 255, .9); border-radius: 14px;
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .35); pointer-events: none;
+}
+.scan-bar { padding: 14px 16px calc(env(safe-area-inset-bottom) + 16px); background: #000; text-align: center; }
+.scan-msg { min-height: 44px; font-size: 15px; word-break: break-all; white-space: pre-line; }
+.scan-bar button { margin-top: 10px; min-height: 48px; padding: 0 32px; border: 1px solid #666; border-radius: 12px; background: #222; color: #fff; }
 </style>
 </head>
 <body>
@@ -150,10 +185,17 @@ button { cursor: pointer; }
 <main id="app" hidden>
   <header class="top">
     <div id="stores" class="stores"></div>
-    <div class="search">
-      <input id="q" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" autocorrect="off" spellcheck="false"
-             placeholder="Gõ số trên thùng" aria-label="Tìm theo số trên thùng">
-      <button id="clearQ" class="clear" aria-label="Xoá ô tìm" hidden>×</button>
+    <div class="search-row">
+      <div class="search">
+        <input id="q" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" autocorrect="off" spellcheck="false"
+               placeholder="Gõ số trên thùng" aria-label="Tìm theo số trên thùng">
+        <button id="clearQ" class="clear" aria-label="Xoá ô tìm" hidden>×</button>
+      </div>
+      <button id="scanBtn" class="scan-btn" aria-label="Quét mã vạch trên thùng">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M7 9v6M10 9v6M13 9v6M16 9v6"/>
+        </svg>
+      </button>
     </div>
     <div id="filters" class="filters">
       <div class="seg" id="seg">
@@ -163,6 +205,7 @@ button { cursor: pointer; }
     </div>
   </header>
   <div id="banner" class="banner" hidden></div>
+  <div id="summary" class="summary"></div>
   <div id="hit"></div>
   <div id="list" class="list"></div>
   <footer class="foot">
@@ -172,6 +215,28 @@ button { cursor: pointer; }
 </main>
 
 <div id="toast" class="toast" role="status" hidden><span id="toastText"></span><button id="toastUndo" class="link">Hoàn tác</button></div>
+
+<div id="sheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetNum" hidden>
+  <div class="sheet-card">
+    <div class="sheet-top"><span>Đưa màn hình cho nhân viên quét</span><button id="sheetClose" class="link">Đóng</button></div>
+    <div id="sheetDone" class="sheet-warn" hidden></div>
+    <div id="barcode" class="barcode"></div>
+    <div id="sheetNum" class="sheet-num"></div>
+    <div class="sheet-pay">Thanh toán <b id="sheetAmount"></b></div>
+    <div id="sheetMeta" class="meta"></div>
+    <button id="sheetOk" class="btn-primary">Đã nhận · kiện tiếp theo</button>
+    <a id="sheetLink" class="link" target="_blank" rel="noopener noreferrer">Mở trang 7-Eleven (dự phòng)</a>
+  </div>
+</div>
+
+<div id="scanner" class="scanner" hidden>
+  <video id="scanVideo" playsinline muted autoplay></video>
+  <div class="scan-frame"></div>
+  <div class="scan-bar">
+    <div id="scanMsg" class="scan-msg"></div>
+    <button id="scanClose">Đóng</button>
+  </div>
+</div>
 
 <script>
 'use strict';
@@ -336,10 +401,9 @@ function deadlineHtml(o) {
   return 'hạn ' + md;
 }
 
-function openLink(o, label) {
-  if (!o.u) return label ? '<div class="empty">Đơn này không có link 払込票URL</div>' : '';
-  return `<a class="${label ? 'btn-primary' : 'open-sm'}" href="${esc(o.u)}" target="_blank" rel="noopener noreferrer"
-             data-open="${esc(o.n)}" aria-label="Mở mã vạch">${label || 'Mở'}</a>`;
+function showBtn(o, big) {
+  const label = big ? (done[o.n] ? 'Hiện lại mã vạch' : 'Hiện mã vạch') : 'Mã';
+  return `<button class="${big ? 'btn-primary' : 'open-sm'}" data-show="${esc(o.n)}" aria-label="Hiện mã vạch">${label}</button>`;
 }
 
 function rowHtml(o, q) {
@@ -349,7 +413,7 @@ function rowHtml(o, q) {
       <div class="num">${numHtml(o.n, q)}</div>
       <div class="meta">${esc(o.ps)} · ${deadlineHtml(o)}${o.a ? ' · ¥' + o.a.toLocaleString('ja-JP') : ''}${d ? ' · nhận lúc ' + fmtTime(d) : ''}</div>
     </div>
-    ${openLink(o)}
+    ${showBtn(o)}
     <button class="check${d ? ' on' : ''}" data-toggle="${esc(o.n)}" aria-label="${d ? 'Bỏ đánh dấu' : 'Đánh dấu đã nhận'}">✓</button>
   </div>`;
 }
@@ -359,7 +423,7 @@ function hitHtml(o, q) {
   return `<div class="hit${d ? ' is-done' : ''}">
     <div class="hit-meta">${d ? 'Kiện này đã đánh dấu nhận lúc ' + fmtTime(d) : 'Khớp 1 kiện'} · ${esc(o.ps)} · ${deadlineHtml(o)}</div>
     <div class="num">${numHtml(o.n, q)}</div>
-    ${openLink(o, d ? 'Mở lại mã vạch' : 'Mở mã vạch')}
+    ${showBtn(o, true)}
   </div>`;
 }
 
@@ -404,6 +468,12 @@ function render() {
       .filter(o => view.filter === 'all' || (view.filter === 'done') === !!done[o.n]);
   }
 
+  const scope = inStore.filter(o => !view.prod || o.ps === view.prod);
+  const left = scope.filter(o => !done[o.n]);
+  const due = left.reduce((sum, o) => sum + (o.a || 0), 0);
+  $('summary').hidden = !!q;
+  $('summary').innerHTML = `Còn <b>${left.length}/${scope.length}</b> kiện` + (due ? ` · cần trả <b>¥${due.toLocaleString('ja-JP')}</b>` : '');
+
   $('hit').innerHTML = q && rows.length === 1 ? hitHtml(rows[0], q) : '';
   $('list').innerHTML = rows.length ? rows.map(o => rowHtml(o, q)).join('') : emptyHtml(q);
   $('list').hidden = q && rows.length === 1;
@@ -441,13 +511,154 @@ $('toastUndo').addEventListener('click', () => {
   $('toast').hidden = true;
 });
 
+// ---------- Mã vạch NW-7 (Codabar) giống trang 払込票 của 7-Eleven: A + 13 số + A, vạch rộng = 3 vạch hẹp ----------
+const NW7 = {
+  '0': '0000011', '1': '0000110', '2': '0001001', '3': '1100000', '4': '0010010',
+  '5': '1000010', '6': '0100001', '7': '0100100', '8': '0110000', '9': '1001000', 'A': '0011010',
+};
+function nw7Svg(num) {
+  const text = 'A' + num + 'A', QUIET = 12, WIDE = 3, H = 60;
+  let x = QUIET, bars = '';
+  [...text].forEach((ch, i) => {
+    [...NW7[ch]].forEach((bit, j) => {
+      const w = bit === '1' ? WIDE : 1;
+      if (j % 2 === 0) bars += `<rect x="${x}" width="${w}" height="${H}"/>`;
+      x += w;
+    });
+    if (i < text.length - 1) x += 1;  // khoảng nghỉ giữa 2 ký tự
+  });
+  return `<svg viewBox="0 0 ${x + QUIET} ${H}" preserveAspectRatio="none" shape-rendering="crispEdges" role="img"
+              aria-label="Mã vạch ${num}"><g fill="#000">${bars}</g></svg>`;
+}
+const fmtSlip = n => n.length === 13 ? `${n.slice(0, 4)}-${n.slice(4, 9)}-${n.slice(9)}` : n;
+
+let sheetSlip = null, wakeLock = null;
+function showSheet(n) {
+  const o = data.orders.find(x => x.n === n);
+  if (!o) return;
+  sheetSlip = n;
+  $('barcode').innerHTML = nw7Svg(n);
+  $('sheetNum').textContent = fmtSlip(n);
+  $('sheetAmount').textContent = o.a ? '¥' + o.a.toLocaleString('ja-JP') : '—';
+  $('sheetMeta').innerHTML = `${esc(o.s)} · ${esc(o.ps)} · ${deadlineHtml(o)}`;
+  $('sheetDone').hidden = !done[n];
+  $('sheetDone').textContent = done[n] ? 'Kiện này đã đánh dấu nhận lúc ' + fmtTime(done[n]) : '';
+  $('sheetLink').hidden = !o.u;
+  $('sheetLink').href = o.u || '#';
+  if (document.activeElement) document.activeElement.blur();
+  $('sheet').hidden = false;
+  document.body.classList.add('noscroll');
+  // Giữ màn hình sáng trong lúc nhân viên quét (iOS 16.4+)
+  if (navigator.wakeLock) navigator.wakeLock.request('screen').then(l => { wakeLock = l; }).catch(() => {});
+}
+function closeSheet() {
+  $('sheet').hidden = true;
+  document.body.classList.remove('noscroll');
+  sheetSlip = null;
+  if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
+}
+$('sheetOk').addEventListener('click', () => {
+  const n = sheetSlip;
+  if (n && !done[n]) { done[n] = Date.now(); saveDone(); toast('Đã đánh dấu nhận ' + n.slice(-7), n); }
+  closeSheet();
+  $('q').value = '';
+  render();
+  $('q').focus();
+});
+$('sheetClose').addEventListener('click', closeSheet);
+
+// ---------- Quét mã vạch trên thùng bằng camera ----------
+let scanReader = null, lastScan = '', audioCtx = null;
+const scanMsg = text => { $('scanMsg').textContent = text; };
+
+function loadZxing() {
+  if (window.ZXing) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'vendor/zxing-0.21.3.min.js';
+    s.onload = resolve;
+    s.onerror = () => reject(new Error('không tải được bộ quét'));
+    document.head.appendChild(s);
+  });
+}
+
+function findScanned(d) {
+  const all = data.orders;
+  const exact = all.find(o => o.n === d) || all.find(o => d.includes(o.n));
+  if (exact) return exact;
+  const part = d.length >= 8 ? all.filter(o => o.n.includes(d)) : [];
+  return part.length === 1 ? part[0] : null;
+}
+
+function beep() {
+  try {
+    const osc = audioCtx.createOscillator();
+    osc.frequency.value = 1500;
+    osc.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.12);
+  } catch (e) {}
+}
+
+function onScan(text, format) {
+  if (text === lastScan) return;
+  lastScan = text;
+  const o = findScanned(digits(text));
+  if (!o) { scanMsg(`Đọc được ${format}: ${text}\nKhông khớp đơn nào, thử mã vạch khác trên thùng.`); return; }
+  beep();
+  closeScanner();
+  if (o.s !== view.store) { view.store = o.s; storage.set(KEY.store, o.s); }
+  $('q').value = o.n;
+  render();
+  showSheet(o.n);
+}
+
+async function openScanner() {
+  try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume(); } catch (e) {}
+  if (document.activeElement) document.activeElement.blur();
+  lastScan = '';
+  $('scanner').hidden = false;
+  document.body.classList.add('noscroll');
+  scanMsg('Đang mở camera…');
+  try {
+    await loadZxing();
+    const F = ZXing.BarcodeFormat;
+    const hints = new Map([
+      [ZXing.DecodeHintType.POSSIBLE_FORMATS, [F.CODABAR, F.EAN_13, F.EAN_8, F.UPC_A, F.CODE_128, F.CODE_39, F.ITF, F.QR_CODE]],
+      [ZXing.DecodeHintType.TRY_HARDER, true],
+    ]);
+    const reader = new ZXing.BrowserMultiFormatReader(hints, 150);
+    scanReader = reader;
+    await reader.decodeFromConstraints(
+      { audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } },
+      $('scanVideo'),
+      result => { if (result) onScan(result.getText(), F[result.getBarcodeFormat()]); });
+    // Đã bấm Đóng trong lúc camera đang mở -> tắt camera ngay
+    if (scanReader !== reader) { reader.reset(); return; }
+    scanMsg('Đưa mã vạch trên thùng vào khung');
+  } catch (err) {
+    scanMsg(err && err.name === 'NotAllowedError'
+      ? 'Chưa được phép dùng camera.\nBấm Đóng rồi bấm nút quét lại và chọn "Cho phép". Nếu không hỏi nữa: Cài đặt > Safari > Camera > Hỏi.'
+      : 'Không mở được camera: ' + (err && (err.message || err.name) || err));
+  }
+}
+
+function closeScanner() {
+  if (scanReader) { try { scanReader.reset(); } catch (e) {} scanReader = null; }
+  $('scanner').hidden = true;
+  document.body.classList.remove('noscroll');
+}
+$('scanBtn').addEventListener('click', openScanner);
+$('scanClose').addEventListener('click', closeScanner);
+document.addEventListener('keydown', ev => {
+  if (ev.key !== 'Escape') return;
+  if (!$('scanner').hidden) closeScanner(); else if (!$('sheet').hidden) closeSheet();
+});
+
 document.addEventListener('click', ev => {
-  const open = ev.target.closest('[data-open]');
-  if (open) {
-    const n = open.dataset.open;
-    if (!done[n]) { done[n] = Date.now(); saveDone(); toast('Đã đánh dấu nhận ' + n.slice(-7), n); }
-    // Chờ link mở xong rồi mới xoá ô tìm để sẵn sàng cho thùng tiếp theo
-    setTimeout(() => { $('q').value = ''; render(); }, 400);
+  const show = ev.target.closest('[data-show]');
+  if (show) {
+    showSheet(show.dataset.show);
     return;
   }
   const toggle = ev.target.closest('[data-toggle]');
