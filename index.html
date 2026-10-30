@@ -156,14 +156,20 @@ body.noscroll { overflow: hidden; }
 
 /* Màn hình quét */
 .scanner { position: fixed; inset: 0; z-index: 30; background: #000; color: #fff; display: flex; flex-direction: column; }
-.scanner video { flex: 1; width: 100%; min-height: 0; object-fit: cover; }
-.scan-frame {
-  position: absolute; left: 8%; right: 8%; top: 32%; height: 22%; border: 3px solid rgba(255, 255, 255, .9); border-radius: 14px;
-  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .35); pointer-events: none;
+.scan-view { position: relative; flex: 1; min-height: 0; }
+.scan-view video, .scan-view canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.scan-view video { object-fit: cover; }
+.scan-view canvas { pointer-events: none; }
+.scan-tools { position: absolute; top: calc(env(safe-area-inset-top) + 12px); right: 12px; display: flex; gap: 8px; }
+.scan-tools button { min-height: 40px; padding: 0 14px; border: 0; border-radius: 20px; background: rgba(0, 0, 0, .55); color: #fff; font-size: 14px; }
+.scan-bar { padding: 12px 16px calc(env(safe-area-inset-bottom) + 14px); background: #000; text-align: center; }
+.scan-msg { min-height: 40px; font-size: 15px; word-break: break-all; white-space: pre-line; }
+.scan-log {
+  margin-top: 8px; padding: 8px 10px; border-radius: 10px; background: #1d1d1d; color: #f2b233;
+  font-family: var(--mono); font-size: 13px; text-align: left; white-space: pre-line; word-break: break-all;
 }
-.scan-bar { padding: 14px 16px calc(env(safe-area-inset-bottom) + 16px); background: #000; text-align: center; }
-.scan-msg { min-height: 44px; font-size: 15px; word-break: break-all; white-space: pre-line; }
-.scan-bar button { margin-top: 10px; min-height: 48px; padding: 0 32px; border: 1px solid #666; border-radius: 12px; background: #222; color: #fff; }
+.scan-actions { display: flex; gap: 8px; justify-content: center; margin-top: 10px; }
+.scan-actions button { min-height: 48px; padding: 0 20px; border: 1px solid #666; border-radius: 12px; background: #222; color: #fff; }
 </style>
 </head>
 <body>
@@ -230,17 +236,21 @@ body.noscroll { overflow: hidden; }
 </div>
 
 <div id="scanner" class="scanner" hidden>
-  <video id="scanVideo" playsinline muted autoplay></video>
-  <div class="scan-frame"></div>
+  <div class="scan-view">
+    <video id="scanVideo" playsinline muted autoplay></video>
+    <canvas id="scanMarks"></canvas>
+    <div class="scan-tools"><button id="torchBtn" hidden>Đèn: tắt</button><button id="zoomBtn" hidden>Phóng to</button></div>
+  </div>
   <div class="scan-bar">
     <div id="scanMsg" class="scan-msg"></div>
-    <button id="scanClose">Đóng</button>
+    <div id="scanLog" class="scan-log" hidden></div>
+    <div class="scan-actions"><button id="scanCopy" hidden>Sao chép mã chưa khớp</button><button id="scanClose">Đóng</button></div>
   </div>
 </div>
 
 <script>
 'use strict';
-const KEY = { key: '7net_key', salt: '7net_salt', blob: '7net_blob', done: '7net_done', store: '7net_store' };
+const KEY = { key: '7net_key', salt: '7net_salt', blob: '7net_blob', done: '7net_done', store: '7net_store', scanlog: '7net_scanlog' };
 const RELOAD_AFTER_MS = 10 * 60 * 1000;
 const $ = id => document.getElementById(id);
 const storage = {
@@ -346,6 +356,7 @@ function showApp() {
   let changed = false;
   for (const n in done) if (!live.has(n)) { delete done[n]; changed = true; }
   if (changed) saveDone();
+  buildAliasIndex();
   render();
 }
 
@@ -532,11 +543,14 @@ function nw7Svg(num) {
 }
 const fmtSlip = n => n.length === 13 ? `${n.slice(0, 4)}-${n.slice(4, 9)}-${n.slice(9)}` : n;
 
-let sheetSlip = null, wakeLock = null;
-function showSheet(n) {
+let sheetSlip = null, sheetFromScan = false, wakeLock = null;
+function showSheet(n, fromScan) {
   const o = data.orders.find(x => x.n === n);
   if (!o) return;
   sheetSlip = n;
+  sheetFromScan = !!fromScan;
+  // Mở từ máy quét -> bấm "Đã nhận" sẽ mở lại camera ngay cho thùng tiếp theo
+  $('sheetOk').textContent = sheetFromScan ? 'Đã nhận · quét thùng tiếp' : 'Đã nhận · kiện tiếp theo';
   $('barcode').innerHTML = nw7Svg(n);
   $('sheetNum').textContent = fmtSlip(n);
   $('sheetAmount').textContent = o.a ? '¥' + o.a.toLocaleString('ja-JP') : '—';
@@ -555,39 +569,119 @@ function closeSheet() {
   $('sheet').hidden = true;
   document.body.classList.remove('noscroll');
   sheetSlip = null;
+  sheetFromScan = false;
   if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
 }
 $('sheetOk').addEventListener('click', () => {
-  const n = sheetSlip;
+  const n = sheetSlip, rescan = sheetFromScan;
   if (n && !done[n]) { done[n] = Date.now(); saveDone(); toast('Đã đánh dấu nhận ' + n.slice(-7), n); }
   closeSheet();
   $('q').value = '';
   render();
-  $('q').focus();
+  if (rescan) openScanner(); else $('q').focus();
 });
 $('sheetClose').addEventListener('click', closeSheet);
 
-// ---------- Quét mã vạch trên thùng bằng camera ----------
-let scanReader = null, lastScan = '', audioCtx = null;
+// ---------- Quét mã vạch trên thùng bằng camera (zxing-wasm: đọc mọi mã trong khung hình cùng lúc) ----------
+const SCAN_OPTIONS = {
+  formats: ['Codabar', 'Code128', 'Code39', 'ITF', 'EAN13', 'EAN8', 'UPCA', 'QRCode', 'DataMatrix'],
+  tryHarder: true, tryRotate: true, tryInvert: false, maxNumberOfSymbols: 8,
+};
+const CAMERA_IDLE_MS = 90 * 1000;  // Giữ camera sẵn 90 giây sau khi đóng để lần quét sau mở ngay
+const SCAN_LOG_MAX = 30;
+let scanStream = null, scanning = false, scanGen = 0, cameraIdleTimer = null, audioCtx = null;
+let torchOn = false, zoomed = false, aliasIndex = new Map();
+const loggedThisSession = new Set();
+const frameCanvas = document.createElement('canvas');
+const frameCtx = frameCanvas.getContext('2d', { willReadFrequently: true });
 const scanMsg = text => { $('scanMsg').textContent = text; };
 
-function loadZxing() {
-  if (window.ZXing) return Promise.resolve();
+function loadScanEngine() {
+  if (window.ZXingWASM) return Promise.resolve();
   return new Promise((resolve, reject) => {
     const s = document.createElement('script');
-    s.src = 'vendor/zxing-0.21.3.min.js';
-    s.onload = resolve;
+    s.src = 'vendor/zxing-wasm-3.1.5.js';
+    s.onload = () => ZXingWASM.prepareZXingModule({
+      overrides: { locateFile: (path, prefix) => path.endsWith('.wasm') ? 'vendor/zxing_reader-3.1.5.wasm' : prefix + path },
+      fireImmediately: true,
+    }).then(resolve, reject);
     s.onerror = () => reject(new Error('không tải được bộ quét'));
     document.head.appendChild(s);
   });
 }
 
+// Các số khác trong mail (số đơn, số vận đơn...) chỉ dùng khi số đó thuộc đúng 1 đơn
+function buildAliasIndex() {
+  const count = new Map();
+  for (const o of data.orders) for (const a of o.x || []) count.set(a, (count.get(a) || 0) + 1);
+  aliasIndex = new Map();
+  for (const o of data.orders) for (const a of o.x || []) if (count.get(a) === 1) aliasIndex.set(a, o);
+}
+
 function findScanned(d) {
+  if (d.length < 6) return null;
   const all = data.orders;
-  const exact = all.find(o => o.n === d) || all.find(o => d.includes(o.n));
+  const exact = all.find(o => o.n === d) || all.find(o => d.includes(o.n)) || aliasIndex.get(d);
   if (exact) return exact;
+  for (const [a, o] of aliasIndex) if (a.length >= 10 && d.includes(a)) return o;
   const part = d.length >= 8 ? all.filter(o => o.n.includes(d)) : [];
   return part.length === 1 ? part[0] : null;
+}
+
+function readScanLog() {
+  try { return JSON.parse(storage.get(KEY.scanlog) || '[]'); } catch (e) { return []; }
+}
+function logUnmatched(text, format) {
+  if (loggedThisSession.has(text)) return;
+  loggedThisSession.add(text);
+  const log = readScanLog().filter(e => e.t !== text);
+  log.unshift({ t: text, f: format, at: Date.now() });
+  storage.set(KEY.scanlog, JSON.stringify(log.slice(0, SCAN_LOG_MAX)));
+  showScanLog();
+}
+function showScanLog() {
+  const log = readScanLog();
+  $('scanLog').hidden = $('scanCopy').hidden = !log.length;
+  $('scanLog').textContent = 'Mã đã đọc nhưng chưa khớp đơn:\n' + log.slice(0, 3).map(e => `${e.f}: ${e.t}`).join('\n');
+}
+$('scanCopy').addEventListener('click', async () => {
+  const log = readScanLog();
+  const text = log.map(e => `${e.f}: ${e.t}`).join('\n');
+  try {
+    await navigator.clipboard.writeText(text);
+    scanMsg(`Đã sao chép ${log.length} mã. Dán gửi lại để tìm cách ghép với đơn.`);
+  } catch (e) {
+    scanMsg(text);
+  }
+});
+
+function drawMarks(marks, scale) {
+  const video = $('scanVideo'), cv = $('scanMarks');
+  const cw = cv.clientWidth, ch = cv.clientHeight, dpr = window.devicePixelRatio || 1;
+  if (cv.width !== Math.round(cw * dpr) || cv.height !== Math.round(ch * dpr)) {
+    cv.width = Math.round(cw * dpr); cv.height = Math.round(ch * dpr);
+  }
+  const g = cv.getContext('2d');
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, cw, ch);
+  if (!marks.length || !video.videoWidth) return;
+  // Video hiển thị kiểu object-fit: cover -> đổi toạ độ khung hình sang toạ độ màn hình
+  const k = Math.max(cw / video.videoWidth, ch / video.videoHeight);
+  const ox = (cw - video.videoWidth * k) / 2, oy = (ch - video.videoHeight * k) / 2;
+  g.lineWidth = 6;
+  g.lineJoin = 'round';
+  const COLORS = { ok: '#3fbf6f', done: '#5b9be6', none: '#f2b233' };
+  for (const { r, state } of marks) {
+    const p = r.position;
+    g.beginPath();
+    [p.topLeft, p.topRight, p.bottomRight, p.bottomLeft].forEach((pt, i) => {
+      const x = pt.x / scale * k + ox, y = pt.y / scale * k + oy;
+      if (i) g.lineTo(x, y); else g.moveTo(x, y);
+    });
+    g.closePath();
+    g.strokeStyle = COLORS[state];
+    g.stroke();
+  }
 }
 
 function beep() {
@@ -600,42 +694,112 @@ function beep() {
   } catch (e) {}
 }
 
-function onScan(text, format) {
-  if (text === lastScan) return;
-  lastScan = text;
-  const o = findScanned(digits(text));
-  if (!o) { scanMsg(`Đọc được ${format}: ${text}\nKhông khớp đơn nào, thử mã vạch khác trên thùng.`); return; }
+// Trả về true nếu đã khớp 1 đơn (dừng quét)
+function handleResults(results, scale) {
+  const marks = [];
+  let match = null, doneHit = null;
+  for (const r of results) {
+    if (!r.text) continue;
+    const o = findScanned(digits(r.text));
+    // Kiện đã nhận không mở lại (camera thường vẫn chĩa vào thùng vừa nhận khi quét tiếp)
+    const state = !o ? 'none' : done[o.n] ? 'done' : 'ok';
+    marks.push({ r, state });
+    if (state === 'ok') match = match || o;
+    else if (state === 'done') doneHit = doneHit || o;
+    else logUnmatched(r.text, r.format);
+  }
+  drawMarks(marks, scale);
+  if (match) { onMatch(match); return true; }
+  if (doneHit) scanMsg(`Kiện ${fmtSlip(doneHit.n)} đã nhận lúc ${fmtTime(done[doneHit.n])} (khung xanh dương).\nĐưa camera sang thùng khác.`);
+  else if (marks.length) scanMsg(`Thấy ${marks.length} mã nhưng chưa khớp đơn nào (khung vàng). Thử mã khác trên thùng.`);
+  return false;
+}
+
+function onMatch(o) {
   beep();
   closeScanner();
   if (o.s !== view.store) { view.store = o.s; storage.set(KEY.store, o.s); }
   $('q').value = o.n;
   render();
-  showSheet(o.n);
+  showSheet(o.n, true);
 }
+
+async function scanLoop(gen) {
+  const video = $('scanVideo');
+  while (scanning && gen === scanGen) {
+    if (video.readyState >= 2 && video.videoWidth) {
+      const scale = Math.min(1, 1920 / Math.max(video.videoWidth, video.videoHeight));
+      const w = Math.round(video.videoWidth * scale), h = Math.round(video.videoHeight * scale);
+      if (frameCanvas.width !== w || frameCanvas.height !== h) { frameCanvas.width = w; frameCanvas.height = h; }
+      frameCtx.drawImage(video, 0, 0, w, h);
+      let results = [];
+      try { results = await ZXingWASM.readBarcodes(frameCtx.getImageData(0, 0, w, h), SCAN_OPTIONS); } catch (e) {}
+      if (!scanning || gen !== scanGen) break;
+      if (handleResults(results, scale)) break;
+    }
+    await new Promise(r => requestAnimationFrame(r));
+  }
+}
+
+async function startCamera() {
+  if (scanStream && scanStream.getVideoTracks().some(t => t.readyState === 'live')) return;
+  scanStream = await navigator.mediaDevices.getUserMedia({
+    audio: false,
+    video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+  });
+  $('scanVideo').srcObject = scanStream;
+  const track = scanStream.getVideoTracks()[0];
+  const caps = track && track.getCapabilities ? track.getCapabilities() : {};
+  torchOn = zoomed = false;
+  $('torchBtn').hidden = !caps.torch;
+  $('zoomBtn').hidden = !(caps.zoom && caps.zoom.max >= 1.5);
+  $('torchBtn').textContent = 'Đèn: tắt';
+  $('zoomBtn').textContent = 'Phóng to';
+}
+
+function stopCamera() {
+  clearTimeout(cameraIdleTimer);
+  if (scanStream) scanStream.getTracks().forEach(t => t.stop());
+  scanStream = null;
+  $('scanVideo').srcObject = null;
+}
+
+function applyTrack(constraint) {
+  const track = scanStream && scanStream.getVideoTracks()[0];
+  if (track) track.applyConstraints({ advanced: [constraint] }).catch(() => {});
+  return track;
+}
+$('torchBtn').addEventListener('click', () => {
+  torchOn = !torchOn;
+  applyTrack({ torch: torchOn });
+  $('torchBtn').textContent = torchOn ? 'Đèn: bật' : 'Đèn: tắt';
+});
+$('zoomBtn').addEventListener('click', () => {
+  const track = scanStream && scanStream.getVideoTracks()[0];
+  if (!track) return;
+  const z = track.getCapabilities().zoom;
+  zoomed = !zoomed;
+  applyTrack({ zoom: zoomed ? Math.min(2, z.max) : Math.max(1, z.min) });
+  $('zoomBtn').textContent = zoomed ? 'Thu nhỏ' : 'Phóng to';
+});
 
 async function openScanner() {
   try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume(); } catch (e) {}
   if (document.activeElement) document.activeElement.blur();
-  lastScan = '';
+  clearTimeout(cameraIdleTimer);
+  const gen = ++scanGen;
   $('scanner').hidden = false;
   document.body.classList.add('noscroll');
+  drawMarks([], 1);
+  showScanLog();
   scanMsg('Đang mở camera…');
   try {
-    await loadZxing();
-    const F = ZXing.BarcodeFormat;
-    const hints = new Map([
-      [ZXing.DecodeHintType.POSSIBLE_FORMATS, [F.CODABAR, F.EAN_13, F.EAN_8, F.UPC_A, F.CODE_128, F.CODE_39, F.ITF, F.QR_CODE]],
-      [ZXing.DecodeHintType.TRY_HARDER, true],
-    ]);
-    const reader = new ZXing.BrowserMultiFormatReader(hints, 150);
-    scanReader = reader;
-    await reader.decodeFromConstraints(
-      { audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } },
-      $('scanVideo'),
-      result => { if (result) onScan(result.getText(), F[result.getBarcodeFormat()]); });
-    // Đã bấm Đóng trong lúc camera đang mở -> tắt camera ngay
-    if (scanReader !== reader) { reader.reset(); return; }
-    scanMsg('Đưa mã vạch trên thùng vào khung');
+    await Promise.all([loadScanEngine(), startCamera()]);
+    if (gen !== scanGen) return;  // Đã bấm Đóng trong lúc chờ
+    await $('scanVideo').play().catch(() => {});
+    scanMsg('Chĩa camera vào nhãn trên thùng, app đọc mọi mã vạch trong khung hình.');
+    scanning = true;
+    scanLoop(gen);
   } catch (err) {
     scanMsg(err && err.name === 'NotAllowedError'
       ? 'Chưa được phép dùng camera.\nBấm Đóng rồi bấm nút quét lại và chọn "Cho phép". Nếu không hỏi nữa: Cài đặt > Safari > Camera > Hỏi.'
@@ -644,12 +808,20 @@ async function openScanner() {
 }
 
 function closeScanner() {
-  if (scanReader) { try { scanReader.reset(); } catch (e) {} scanReader = null; }
+  scanning = false;
+  scanGen++;
   $('scanner').hidden = true;
   document.body.classList.remove('noscroll');
+  clearTimeout(cameraIdleTimer);
+  cameraIdleTimer = setTimeout(stopCamera, CAMERA_IDLE_MS);
 }
 $('scanBtn').addEventListener('click', openScanner);
 $('scanClose').addEventListener('click', closeScanner);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'hidden') return;
+  if (!$('scanner').hidden) closeScanner();
+  stopCamera();
+});
 document.addEventListener('keydown', ev => {
   if (ev.key !== 'Escape') return;
   if (!$('scanner').hidden) closeScanner(); else if (!$('sheet').hidden) closeSheet();
