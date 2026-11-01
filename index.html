@@ -174,14 +174,21 @@ body.noscroll { overflow: hidden; }
 
 /* Màn hình quét */
 .scanner { position: fixed; inset: 0; z-index: 30; background: #000; color: #fff; display: flex; flex-direction: column; }
-.scan-view { position: relative; flex: 1; min-height: 0; }
+.scan-view { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+.ocr-box {
+  position: absolute; left: 7%; right: 7%; top: 40%; height: 13%; border: 3px solid rgba(255, 255, 255, .95); border-radius: 12px;
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .28); pointer-events: none; transition: border-color .15s;
+}
+.ocr-box.near { border-color: #f2b233; }
+.ocr-box.hit { border-color: #3fbf6f; }
+.ocr-box span { position: absolute; left: 0; right: 0; bottom: calc(100% + 8px); text-align: center; font-size: 14px; color: #fff; text-shadow: 0 1px 3px #000; }
 .scan-view video, .scan-view canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .scan-view video { object-fit: cover; }
 .scan-view canvas { pointer-events: none; }
 .scan-tools { position: absolute; top: calc(env(safe-area-inset-top) + 12px); right: 12px; display: flex; gap: 8px; }
 .scan-tools button { min-height: 40px; padding: 0 14px; border: 0; border-radius: 20px; background: rgba(0, 0, 0, .55); color: #fff; font-size: 14px; }
 .scan-bar { padding: 12px 16px calc(env(safe-area-inset-bottom) + 14px); background: #000; text-align: center; }
-.scan-msg { min-height: 40px; font-size: 15px; word-break: break-all; white-space: pre-line; }
+.scan-msg { min-height: 40px; font-size: 15px; overflow-wrap: anywhere; white-space: pre-line; }
 .scan-log {
   margin-top: 8px; padding: 8px 10px; border-radius: 10px; background: #1d1d1d; color: #f2b233;
   font-family: var(--mono); font-size: 13px; text-align: left; white-space: pre-line; word-break: break-all;
@@ -264,6 +271,7 @@ body.noscroll { overflow: hidden; }
     <p class="hint">"Như 7-Eleven" giống hệt kích thước trên trang payment.sej.co.jp (245 × 56). Máy quét khó đọc thì thử cỡ khác. Trên màn hình mã vạch cũng đổi được cỡ.</p>
     <div id="sizePreview" class="barcode"></div>
     <h3>Khi quét thùng bằng camera</h3>
+    <label class="switch-row"><span>Đọc dãy số in trên thùng (OCR), lần đầu tải khoảng 6 MB</span><input id="optOcr" type="checkbox"></label>
     <label class="switch-row"><span>Kêu "bíp" khi khớp đơn</span><input id="optBeep" type="checkbox"></label>
     <label class="switch-row"><span>Bấm "Đã nhận" xong tự mở camera cho thùng tiếp theo</span><input id="optRescan" type="checkbox"></label>
   </div>
@@ -273,6 +281,7 @@ body.noscroll { overflow: hidden; }
   <div class="scan-view">
     <video id="scanVideo" playsinline muted autoplay></video>
     <canvas id="scanMarks"></canvas>
+    <div id="ocrBox" class="ocr-box" hidden><span>Dãy số trên thùng vào khung này</span></div>
     <div class="scan-tools"><button id="torchBtn" hidden>Đèn: tắt</button><button id="zoomBtn" hidden>Phóng to</button></div>
   </div>
   <div class="scan-bar">
@@ -288,7 +297,7 @@ const KEY = {
   key: '7net_key', salt: '7net_salt', blob: '7net_blob', done: '7net_done', store: '7net_store',
   scanlog: '7net_scanlog', settings: '7net_settings',
 };
-const DEFAULT_SETTINGS = { size: 'sej', beep: true, autoRescan: true };
+const DEFAULT_SETTINGS = { size: 'sej', beep: true, autoRescan: true, ocr: true };
 const RELOAD_AFTER_MS = 10 * 60 * 1000;
 const $ = id => document.getElementById(id);
 const storage = {
@@ -641,6 +650,7 @@ function applySettings() {
   document.querySelectorAll('[data-size]').forEach(b => b.classList.toggle('on', b.dataset.size === settings.size));
   $('optBeep').checked = settings.beep;
   $('optRescan').checked = settings.autoRescan;
+  $('optOcr').checked = settings.ocr;
   if (sheetSlip) $('sheetOk').textContent = sheetFromScan && settings.autoRescan ? 'Đã nhận · quét thùng tiếp' : 'Đã nhận · kiện tiếp theo';
 }
 function openSettings() {
@@ -658,6 +668,7 @@ $('settingsBtn').addEventListener('click', openSettings);
 $('settingsClose').addEventListener('click', closeSettings);
 $('optBeep').addEventListener('change', () => setSetting('beep', $('optBeep').checked));
 $('optRescan').addEventListener('change', () => setSetting('autoRescan', $('optRescan').checked));
+$('optOcr').addEventListener('change', () => setSetting('ocr', $('optOcr').checked));
 applySettings();
 
 // ---------- Quét mã vạch trên thùng bằng camera (zxing-wasm: đọc mọi mã trong khung hình cùng lúc) ----------
@@ -862,6 +873,174 @@ $('zoomBtn').addEventListener('click', () => {
   $('zoomBtn').textContent = zoomed ? 'Thu nhỏ' : 'Phóng to';
 });
 
+// ---------- Đọc dãy số in trên thùng (OCR tesseract.js: đọc song song ảnh xuôi và ảnh xoay 180°) ----------
+const OCR_DIR = 'vendor/tesseract/';
+const ocrCanvas = document.createElement('canvas'), ocrFlip = document.createElement('canvas');
+let ocrScheduler = null, ocrLoading = null, ocrPending = null;
+
+function wasmSimd() {
+  try {
+    return WebAssembly.validate(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 96, 0, 1, 123, 3, 2, 1, 0, 10, 10, 1, 8, 0, 65, 0, 253, 15, 253, 98, 11]));
+  } catch (e) { return false; }
+}
+
+function loadOcrEngine() {
+  if (ocrLoading) return ocrLoading;
+  ocrLoading = (async () => {
+    if (!window.Tesseract) {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = OCR_DIR + 'tesseract.min.js';
+        s.onload = resolve;
+        s.onerror = () => reject(new Error('không tải được bộ đọc số'));
+        document.head.appendChild(s);
+      });
+    }
+    const options = {
+      workerPath: OCR_DIR + 'worker.min.js',
+      corePath: OCR_DIR + (wasmSimd() ? 'tesseract-core-simd-lstm.wasm.js' : 'tesseract-core-lstm.wasm.js'),
+      langPath: OCR_DIR.replace(/\/$/, ''),
+      gzip: true,
+      errorHandler: () => {},  // Ảnh lỗi chỉ bỏ qua lượt đó, không làm vỡ trang
+    };
+    // 2 luồng: 1 đọc ảnh xuôi, 1 đọc ảnh lộn ngược, chạy cùng lúc
+    const workers = await Promise.all([0, 1].map(async () => {
+      const w = await Tesseract.createWorker('eng', Tesseract.OEM.LSTM_ONLY, options);
+      await w.setParameters({
+        tessedit_char_whitelist: '0123456789-', tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK, user_defined_dpi: '300',
+      });
+      return w;
+    }));
+    const scheduler = Tesseract.createScheduler();
+    workers.forEach(w => scheduler.addWorker(w));
+    ocrScheduler = scheduler;
+  })();
+  ocrLoading.catch(() => { ocrLoading = null; });
+  return ocrLoading;
+}
+
+function percentile(hist, count) {
+  let sum = 0;
+  for (let v = 0; v < 256; v++) { sum += hist[v]; if (sum >= count) return v; }
+  return 255;
+}
+
+// Cắt đúng vùng trong khung trắng từ khung hình camera, đổi sang ảnh xám tương phản cao
+function cropGuide(video) {
+  const box = $('ocrBox').getBoundingClientRect(), view = $('scanMarks').getBoundingClientRect();
+  if (!box.width || !box.height || !view.width) return null;
+  const k = Math.max(view.width / video.videoWidth, view.height / video.videoHeight);
+  const ox = (view.width - video.videoWidth * k) / 2, oy = (view.height - video.videoHeight * k) / 2;
+  const sx = (box.left - view.left - ox) / k, sy = (box.top - view.top - oy) / k, sw = box.width / k, sh = box.height / k;
+  const H = 120, W = Math.max(1, Math.round(sw * H / sh));
+  ocrCanvas.width = W; ocrCanvas.height = H;
+  const g = ocrCanvas.getContext('2d', { willReadFrequently: true });
+  g.drawImage(video, sx, sy, sw, sh, 0, 0, W, H);
+  const img = g.getImageData(0, 0, W, H), px = img.data, lum = new Uint8Array(W * H), hist = new Uint32Array(256);
+  for (let i = 0, j = 0; i < px.length; i += 4, j++) {
+    lum[j] = (px[i] * 77 + px[i + 1] * 150 + px[i + 2] * 29) >> 8;
+    hist[lum[j]]++;
+  }
+  const lo = percentile(hist, lum.length * 0.02), hi = percentile(hist, lum.length * 0.98), scale = 255 / Math.max(1, hi - lo);
+  for (let i = 0, j = 0; i < px.length; i += 4, j++) px[i] = px[i + 1] = px[i + 2] = Math.max(0, Math.min(255, (lum[j] - lo) * scale));
+  g.putImageData(img, 0, 0);
+  ocrFlip.width = W; ocrFlip.height = H;
+  const f = ocrFlip.getContext('2d');
+  f.setTransform(-1, 0, 0, -1, W, H);
+  f.drawImage(ocrCanvas, 0, 0);
+  return [ocrCanvas, ocrFlip];
+}
+
+// Số phép sửa (thêm/bớt/đổi 1 chữ số) ít nhất để p xuất hiện trong t
+function editIn(p, t) {
+  let prev = new Array(t.length + 1).fill(0), cur = new Array(t.length + 1);
+  for (let i = 1; i <= p.length; i++) {
+    cur[0] = i;
+    for (let j = 1; j <= t.length; j++) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (p[i - 1] === t[j - 1] ? 0 : 1));
+    }
+    [prev, cur] = [cur, prev];
+  }
+  return Math.min(...prev);
+}
+
+// So dãy số đọc được với danh sách đơn, cho phép sai 1-2 số. Chỉ trả về khi có đúng 1 đơn giống nhất.
+function matchDigits(runs) {
+  let best = null, second = Infinity;
+  for (const o of data.orders) {
+    const keys = [o.n, ...(o.x || []).filter(a => aliasIndex.get(a) === o)];
+    let dist = Infinity, len = 0;
+    for (const key of keys) {
+      for (const t of runs) {
+        let d, allowed, l;
+        if (t.length >= key.length - 2) { d = editIn(key, t); allowed = key.length >= 12 ? 2 : 1; l = key.length; }
+        else if (t.length >= 7) { d = editIn(t, key); allowed = t.length >= 10 ? 1 : 0; l = t.length; }
+        else continue;
+        if (d <= allowed && (d < dist || (d === dist && l > len))) { dist = d; len = l; }
+      }
+    }
+    if (dist === Infinity) continue;
+    if (!best || dist < best.dist) { if (best) second = Math.min(second, best.dist); best = { order: o, dist, len }; }
+    else second = Math.min(second, dist);
+  }
+  return best && best.dist < second ? best : null;
+}
+
+function handleOcr(texts) {
+  const runs = [];
+  for (const text of texts) {
+    for (const line of text.split('\n')) {
+      const d = digits(line);
+      if (d.length >= 6) runs.push(d);
+    }
+  }
+  const best = runs.length ? matchDigits(runs) : null;
+  $('ocrBox').classList.toggle('near', !!best);
+  if (!best) {
+    ocrPending = null;
+    const longest = runs.sort((a, b) => b.length - a.length)[0];
+    if (longest) scanMsg(`Đọc được số: ${longest}\nChưa khớp đơn nào, giữ máy thẳng và gần hơn một chút.`);
+    return;
+  }
+  const o = best.order;
+  // Khớp đủ ≥10 số không sai số nào thì nhận ngay; khớp gần đúng thì cần 2 lần đọc liên tiếp cùng ra 1 đơn
+  const confirmed = (best.dist === 0 && best.len >= 10) || (ocrPending && ocrPending.n === o.n);
+  ocrPending = { n: o.n };
+  if (done[o.n]) { scanMsg(`Kiện ${fmtSlip(o.n)} đã nhận lúc ${fmtTime(done[o.n])}.\nĐưa camera sang thùng khác.`); return; }
+  if (!confirmed) { scanMsg(`Gần khớp ${fmtSlip(o.n)}, giữ yên máy…`); return; }
+  $('ocrBox').classList.add('hit');
+  onMatch(o);
+}
+
+async function ocrLoop(gen) {
+  const video = $('scanVideo');
+  while (scanning && gen === scanGen) {
+    let results = null;
+    try {
+      const crops = video.readyState >= 2 && video.videoWidth ? cropGuide(video) : null;
+      // Đưa ảnh PNG dạng data URL (tạo đồng bộ) thay vì canvas: tesseract.js xử lý canvas mất ~1 giây, PNG chỉ ~10 ms
+      if (crops) results = await Promise.all(crops.map(c => ocrScheduler.addJob('recognize', c.toDataURL('image/png'))));
+    } catch (e) {}
+    if (!results) { await new Promise(r => setTimeout(r, 100)); continue; }
+    if (!scanning || gen !== scanGen) break;
+    handleOcr(results.map(r => (r && r.data && r.data.text) || ''));
+  }
+}
+
+function startOcr(gen) {
+  $('ocrBox').hidden = false;
+  $('ocrBox').classList.remove('near', 'hit');
+  ocrPending = null;
+  if (!ocrScheduler) scanMsg('Đang tải bộ đọc số (lần đầu khoảng 6 MB, lần sau mở ngay)…');
+  loadOcrEngine().then(() => {
+    if (gen !== scanGen) return;
+    scanMsg('Đưa dãy số trên thùng vào khung trắng. Xuôi hay ngược đều đọc được.');
+    ocrLoop(gen);
+  }, err => {
+    if (gen === scanGen) scanMsg('Không tải được bộ đọc số (' + err.message + '). Vẫn quét mã vạch được.');
+  });
+}
+
 async function openScanner() {
   try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume(); } catch (e) {}
   if (document.activeElement) document.activeElement.blur();
@@ -879,6 +1058,8 @@ async function openScanner() {
     scanMsg('Chĩa camera vào nhãn trên thùng, app đọc mọi mã vạch trong khung hình.');
     scanning = true;
     scanLoop(gen);
+    $('ocrBox').hidden = !settings.ocr;
+    if (settings.ocr) startOcr(gen);
   } catch (err) {
     scanMsg(err && err.name === 'NotAllowedError'
       ? 'Chưa được phép dùng camera.\nBấm Đóng rồi bấm nút quét lại và chọn "Cho phép". Nếu không hỏi nữa: Cài đặt > Safari > Camera > Hỏi.'
