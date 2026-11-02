@@ -17,7 +17,7 @@
   --bg: #f6f5f1; --card: #ffffff; --text: #1f1e1c; --muted: #6b6a65; --faint: #9c9a93; --line: #e2e0d8;
   --fill: #185fa5; --on-fill: #ffffff; --chip-on: #e6f1fb; --chip-on-text: #0c447c;
   --ok: #3b6d11; --ok-bg: #eaf3de; --warn: #854f0b; --warn-bg: #faeeda; --bad: #a32d2d; --bad-bg: #fcebeb;
-  --hl: rgba(239, 159, 39, .35);
+  --hl: rgba(239, 159, 39, .35); --shine: #8fbce8;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 @media (prefers-color-scheme: dark) {
@@ -25,7 +25,7 @@
     --bg: #1c1c1b; --card: #2a2a28; --text: #f1efe8; --muted: #b4b2a9; --faint: #85837c; --line: #3c3b38;
     --fill: #378add; --chip-on: #0c447c; --chip-on-text: #e6f1fb;
     --ok: #c0dd97; --ok-bg: #27500a; --warn: #fac775; --warn-bg: #633806; --bad: #f7c1c1; --bad-bg: #791f1f;
-    --hl: rgba(239, 159, 39, .45);
+    --hl: rgba(239, 159, 39, .45); --shine: #ffffff;
   }
 }
 * { box-sizing: border-box; }
@@ -157,7 +157,7 @@ body.noscroll { overflow: hidden; }
 .barcode.size-sej svg { width: 245px; height: 56px; }  /* Đúng kích thước trên trang payment.sej.co.jp */
 .barcode.size-medium svg { width: 300px; max-width: 100%; height: 90px; }
 .barcode.size-large svg { width: 100%; height: 150px; }
-.size-seg { max-width: 360px; margin: 0 auto 14px; }
+.size-seg { flex: none; width: 100%; max-width: 360px; margin: 0 auto 14px; }
 
 /* Cài đặt */
 .settings { text-align: left; }
@@ -171,6 +171,37 @@ body.noscroll { overflow: hidden; }
 .sheet-pay b { font-size: 26px; }
 .sheet .meta { white-space: normal; margin-bottom: 18px; }
 .sheet .link { display: inline-block; margin-top: 12px; }
+/* Phần xác nhận "Đã nhận" nằm sát đáy màn hình để bấm/vuốt bằng 1 tay */
+#sheet { display: flex; flex-direction: column; }
+#sheet .sheet-card { flex: 1 0 auto; width: 100%; display: flex; flex-direction: column; }
+.sheet-bottom { margin-top: auto; padding-top: 8px; }
+.sheet-bottom .link { margin: 0 0 14px; }
+
+/* Thanh vuốt xác nhận: kéo nút tròn hết sang phải mới tính là đã nhận */
+.slide {
+  position: relative; width: min(290px, 100%); height: 64px; margin: 0 auto 8px; border-radius: 32px;
+  background: var(--chip-on); overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none;
+  transition: background .15s;
+}
+.slide-label {
+  position: absolute; inset: 0 12px 0 64px; display: flex; align-items: center; justify-content: center;
+  font-size: 15px; font-weight: 600; white-space: nowrap; pointer-events: none;
+}
+.slide-label span {
+  color: transparent; -webkit-background-clip: text; background-clip: text; background-size: 300% 100%;
+  background-image: linear-gradient(90deg, var(--chip-on-text) 40%, var(--shine) 50%, var(--chip-on-text) 60%);
+  animation: shine 2.4s linear infinite;
+}
+@keyframes shine { from { background-position: 100% 0; } to { background-position: 0 0; } }
+@media (prefers-reduced-motion: reduce) { .slide-label span { animation: none; } }
+.slide-knob {
+  position: absolute; left: 4px; top: 4px; width: 56px; height: 56px; padding: 0; border: 0; border-radius: 28px;
+  background: var(--fill); color: var(--on-fill); display: flex; align-items: center; justify-content: center;
+  touch-action: none; cursor: grab;
+}
+.slide-knob.back { transition: transform .25s ease-out; }
+.slide.ok { background: var(--ok-bg); }
+.slide.ok .slide-knob { background: var(--ok); color: var(--ok-bg); }
 
 /* Màn hình quét */
 .scanner { position: fixed; inset: 0; z-index: 30; background: #000; color: #fff; display: flex; flex-direction: column; }
@@ -202,12 +233,12 @@ body.noscroll { overflow: hidden; }
 <main id="lock" class="lock" hidden>
   <div class="lock-card">
     <img src="icon.png" alt="" width="64" height="64">
-    <h1>Nhận hàng 7net</h1>
+    <h1 data-t="appName">Nhận hàng 7net</h1>
     <form id="lockForm">
       <input type="text" name="username" value="7net" autocomplete="username" hidden>
-      <input id="pin" type="password" name="password" autocomplete="current-password" placeholder="Nhập PIN" aria-label="PIN">
-      <label class="remember"><input id="remember" type="checkbox" checked> Nhớ trên máy này</label>
-      <button id="unlockBtn" type="submit" class="btn-primary">Mở khoá</button>
+      <input id="pin" type="password" name="password" autocomplete="current-password" placeholder="Nhập PIN" data-t-ph="pinPh" aria-label="PIN">
+      <label class="remember"><input id="remember" type="checkbox" checked> <span data-t="remember">Nhớ trên máy này</span></label>
+      <button id="unlockBtn" type="submit" class="btn-primary" data-t="unlock">Mở khoá</button>
       <p id="lockMsg" class="msg" role="alert"></p>
     </form>
   </div>
@@ -219,10 +250,10 @@ body.noscroll { overflow: hidden; }
     <div class="search-row">
       <div class="search">
         <input id="q" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" autocorrect="off" spellcheck="false"
-               placeholder="Gõ số trên thùng" aria-label="Tìm theo số trên thùng">
-        <button id="clearQ" class="clear" aria-label="Xoá ô tìm" hidden>×</button>
+               placeholder="Gõ số trên thùng" data-t-ph="searchPh" aria-label="Tìm theo số trên thùng" data-t-aria="searchAria">
+        <button id="clearQ" class="clear" aria-label="Xoá ô tìm" data-t-aria="clearAria" hidden>×</button>
       </div>
-      <button id="scanBtn" class="scan-btn" aria-label="Quét mã vạch trên thùng">
+      <button id="scanBtn" class="scan-btn" aria-label="Quét thùng bằng camera" data-t-aria="scanAria">
         <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
           <path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M7 9v6M10 9v6M13 9v6M16 9v6"/>
         </svg>
@@ -230,9 +261,9 @@ body.noscroll { overflow: hidden; }
     </div>
     <div id="filters" class="filters">
       <div class="seg" id="seg">
-        <button data-filter="todo" class="on">Chưa nhận</button><button data-filter="all">Tất cả</button><button data-filter="done">Đã nhận</button>
+        <button data-filter="todo" class="on" data-t="fTodo">Chưa nhận</button><button data-filter="all" data-t="fAll">Tất cả</button><button data-filter="done" data-t="fDone">Đã nhận</button>
       </div>
-      <select id="prod" aria-label="Lọc sản phẩm" hidden></select>
+      <select id="prod" aria-label="Lọc sản phẩm" data-t-aria="prodAria" hidden></select>
     </div>
   </header>
   <div id="banner" class="banner" hidden></div>
@@ -241,39 +272,54 @@ body.noscroll { overflow: hidden; }
   <div id="list" class="list"></div>
   <footer class="foot">
     <span id="updated"></span>
-    <span><button id="settingsBtn" class="link">Cài đặt</button> · <button id="reloadBtn" class="link">Tải lại</button> · <button id="lockBtn" class="link">Khoá</button></span>
+    <span><button id="settingsBtn" class="link" data-t="settings">Cài đặt</button> · <button id="reloadBtn" class="link" data-t="reload">Tải lại</button> · <button id="lockBtn" class="link" data-t="lock">Khoá</button></span>
   </footer>
 </main>
 
-<div id="toast" class="toast" role="status" hidden><span id="toastText"></span><button id="toastUndo" class="link">Hoàn tác</button></div>
+<div id="toast" class="toast" role="status" hidden><span id="toastText"></span><button id="toastUndo" class="link" data-t="undo">Hoàn tác</button></div>
 
 <div id="sheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetNum" hidden>
   <div class="sheet-card">
-    <div class="sheet-top"><span>Đưa màn hình cho nhân viên quét</span><button id="sheetClose" class="link">Đóng</button></div>
+    <div class="sheet-top"><span data-t="sheetHint">Đưa màn hình cho nhân viên quét</span><button id="sheetClose" class="link" data-t="close">Đóng</button></div>
     <div id="sheetDone" class="sheet-warn" hidden></div>
     <div id="barcode" class="barcode"></div>
-    <div class="seg size-seg" aria-label="Cỡ mã vạch">
-      <button data-size="sej">Như 7-Eleven</button><button data-size="medium">Vừa</button><button data-size="large">Lớn</button>
+    <div class="seg size-seg" aria-label="Cỡ mã vạch" data-t-aria="hSize">
+      <button data-set="size" data-val="sej" data-t="sizeSej">Như 7-Eleven</button><button data-set="size" data-val="medium" data-t="sizeMedium">Vừa</button><button data-set="size" data-val="large" data-t="sizeLarge">Lớn</button>
     </div>
     <div id="sheetNum" class="sheet-num"></div>
-    <div class="sheet-pay">Thanh toán <b id="sheetAmount"></b></div>
+    <div class="sheet-pay"><span data-t="pay">Thanh toán</span> <b id="sheetAmount"></b></div>
     <div id="sheetMeta" class="meta"></div>
-    <button id="sheetOk" class="btn-primary">Đã nhận · kiện tiếp theo</button>
-    <a id="sheetLink" class="link" target="_blank" rel="noopener noreferrer">Mở trang 7-Eleven (dự phòng)</a>
+    <div class="sheet-bottom">
+      <a id="sheetLink" class="link" target="_blank" rel="noopener noreferrer" data-t="fallbackLink">Mở trang 7-Eleven (dự phòng)</a>
+      <button id="sheetOk" class="btn-primary"></button>
+      <div id="slide" class="slide">
+        <span class="slide-label" id="slideLabel"><span id="slideText"></span></span>
+        <button id="slideKnob" class="slide-knob" aria-label="Kéo nút sang hết bên phải để xác nhận đã nhận" data-t-aria="slideAria">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M6 6l6 6-6 6M13 6l6 6-6 6"/>
+          </svg>
+        </button>
+      </div>
+    </div>
   </div>
 </div>
 
 <div id="settings" class="sheet" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" hidden>
   <div class="sheet-card settings">
-    <div class="sheet-top"><h2 id="settingsTitle">Cài đặt</h2><button id="settingsClose" class="link">Xong</button></div>
-    <h3>Cỡ mã vạch</h3>
-    <div class="seg"><button data-size="sej">Như 7-Eleven</button><button data-size="medium">Vừa</button><button data-size="large">Lớn</button></div>
-    <p class="hint">"Như 7-Eleven" giống hệt kích thước trên trang payment.sej.co.jp (245 × 56). Máy quét khó đọc thì thử cỡ khác. Trên màn hình mã vạch cũng đổi được cỡ.</p>
+    <div class="sheet-top"><h2 id="settingsTitle" data-t="settings">Cài đặt</h2><button id="settingsClose" class="link" data-t="done">Xong</button></div>
+    <h3>Ngôn ngữ · 言語</h3>
+    <div class="seg"><button data-set="lang" data-val="vi">Tiếng Việt</button><button data-set="lang" data-val="ja">日本語</button></div>
+    <h3 data-t="hConfirm">Cách xác nhận "Đã nhận"</h3>
+    <div class="seg"><button data-set="confirm" data-val="slide" data-t="confirmSlide">Vuốt ngang</button><button data-set="confirm" data-val="button" data-t="confirmButton">Bấm nút</button></div>
+    <p class="hint" data-t="confirmHint">Vuốt ngang: phải kéo nút tròn hết sang bên phải mới tính là đã nhận, nên không lo bấm nhầm.</p>
+    <h3 data-t="hSize">Cỡ mã vạch</h3>
+    <div class="seg"><button data-set="size" data-val="sej" data-t="sizeSej">Như 7-Eleven</button><button data-set="size" data-val="medium" data-t="sizeMedium">Vừa</button><button data-set="size" data-val="large" data-t="sizeLarge">Lớn</button></div>
+    <p class="hint" data-t="sizeHint">"Như 7-Eleven" giống hệt kích thước trên trang payment.sej.co.jp (245 × 56). Máy quét khó đọc thì thử cỡ khác. Trên màn hình mã vạch cũng đổi được cỡ.</p>
     <div id="sizePreview" class="barcode"></div>
-    <h3>Khi quét thùng bằng camera</h3>
-    <label class="switch-row"><span>Đọc dãy số in trên thùng (OCR), lần đầu tải khoảng 6 MB</span><input id="optOcr" type="checkbox"></label>
-    <label class="switch-row"><span>Kêu "bíp" khi khớp đơn</span><input id="optBeep" type="checkbox"></label>
-    <label class="switch-row"><span>Bấm "Đã nhận" xong tự mở camera cho thùng tiếp theo</span><input id="optRescan" type="checkbox"></label>
+    <h3 data-t="hScan">Khi quét thùng bằng camera</h3>
+    <label class="switch-row"><span data-t="optOcr">Đọc dãy số in trên thùng (OCR), lần đầu tải khoảng 6 MB</span><input id="optOcr" type="checkbox"></label>
+    <label class="switch-row"><span data-t="optBeep">Kêu "bíp" khi khớp đơn</span><input id="optBeep" type="checkbox"></label>
+    <label class="switch-row"><span data-t="optRescan">Xác nhận "Đã nhận" xong tự mở camera cho thùng tiếp theo</span><input id="optRescan" type="checkbox"></label>
   </div>
 </div>
 
@@ -281,13 +327,13 @@ body.noscroll { overflow: hidden; }
   <div class="scan-view">
     <video id="scanVideo" playsinline muted autoplay></video>
     <canvas id="scanMarks"></canvas>
-    <div id="ocrBox" class="ocr-box" hidden><span>Dãy số trên thùng vào khung này</span></div>
-    <div class="scan-tools"><button id="torchBtn" hidden>Đèn: tắt</button><button id="zoomBtn" hidden>Phóng to</button></div>
+    <div id="ocrBox" class="ocr-box" hidden><span data-t="ocrBoxLabel">Dãy số trên thùng vào khung này</span></div>
+    <div class="scan-tools"><button id="torchBtn" hidden></button><button id="zoomBtn" hidden></button></div>
   </div>
   <div class="scan-bar">
     <div id="scanMsg" class="scan-msg"></div>
     <div id="scanLog" class="scan-log" hidden></div>
-    <div class="scan-actions"><button id="scanCopy" hidden>Sao chép mã chưa khớp</button><button id="scanClose">Đóng</button></div>
+    <div class="scan-actions"><button id="scanCopy" data-t="copyUnmatched" hidden>Sao chép mã chưa khớp</button><button id="scanClose" data-t="close">Đóng</button></div>
   </div>
 </div>
 
@@ -297,7 +343,7 @@ const KEY = {
   key: '7net_key', salt: '7net_salt', blob: '7net_blob', done: '7net_done', store: '7net_store',
   scanlog: '7net_scanlog', settings: '7net_settings',
 };
-const DEFAULT_SETTINGS = { size: 'sej', beep: true, autoRescan: true, ocr: true };
+const DEFAULT_SETTINGS = { size: 'sej', beep: true, autoRescan: true, ocr: true, confirm: 'slide', lang: 'vi' };
 const RELOAD_AFTER_MS = 10 * 60 * 1000;
 const $ = id => document.getElementById(id);
 const storage = {
@@ -305,6 +351,107 @@ const storage = {
   set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
   del(k) { try { localStorage.removeItem(k); } catch (e) {} },
 };
+let settings = readSettings();
+
+// ---------- Ngôn ngữ (Cài đặt > Ngôn ngữ, mặc định tiếng Việt) ----------
+const TEXT = {
+  vi: {
+    appName: 'Nhận hàng 7net', pinPh: 'Nhập PIN', remember: 'Nhớ trên máy này', unlock: 'Mở khoá', decrypting: 'Đang giải mã…',
+    pinFirst: 'Nhập PIN trước đã', pinWrong: 'PIN không đúng', pinChanged: 'PIN đã đổi, hãy nhập lại.',
+    noCrypto: 'Trình duyệt không hỗ trợ giải mã. Hãy mở bằng link https.',
+    loadFail: 'Không tải được dữ liệu. Kiểm tra mạng rồi mở lại.', loadFailToast: 'Không tải được dữ liệu, kiểm tra mạng',
+    offlineToast: 'Không có mạng, đang dùng bản đã lưu', reloaded: 'Đã tải dữ liệu mới',
+    searchPh: 'Gõ số trên thùng', searchAria: 'Tìm theo số trên thùng', clearAria: 'Xoá ô tìm', scanAria: 'Quét thùng bằng camera',
+    fTodo: 'Chưa nhận', fAll: 'Tất cả', fDone: 'Đã nhận', prodAria: 'Lọc sản phẩm', allProducts: 'Tất cả SP',
+    settings: 'Cài đặt', reload: 'Tải lại', lock: 'Khoá', undo: 'Hoàn tác', close: 'Đóng', done: 'Xong',
+    due: 'hạn {d}', dueUnknown: 'chưa rõ hạn', overdue: 'quá hạn {d}', dueToday: 'hết hạn hôm nay', dueTomorrow: 'hạn ngày mai',
+    showCode: 'Hiện mã vạch', showAgain: 'Hiện lại mã vạch', codeShort: 'Mã', mark: 'Đánh dấu đã nhận', unmark: 'Bỏ đánh dấu',
+    markedAt: 'Kiện này đã đánh dấu nhận lúc {t}', oneMatch: 'Khớp 1 kiện',
+    summary: 'Còn <b>{left}/{total}</b> kiện', summaryDue: ' · cần trả <b>¥{due}</b>',
+    sampleNote: 'Đây là DỮ LIỆU MẪU để thử, không phải đơn thật. Chạy main.py sẽ thay bằng đơn thật.',
+    offlineNote: 'Không tải được bản mới, đang dùng dữ liệu đã lưu.', updated: 'Dữ liệu {d} · {n} đơn',
+    emptyFilter: 'Không có kiện nào ở mục này', emptyQuery: 'Không có kiện nào khớp số này',
+    elsewhere: 'Không có ở cửa hàng này, nhưng có {n} kiện khớp ở', switchTo: 'Chuyển sang {s}',
+    markedToast: 'Đã đánh dấu nhận {n}', barcodeAria: 'Mã vạch {n}',
+    sheetHint: 'Đưa màn hình cho nhân viên quét', pay: 'Thanh toán', fallbackLink: 'Mở trang 7-Eleven (dự phòng)',
+    okNext: 'Đã nhận · kiện tiếp theo', okRescan: 'Đã nhận · quét thùng tiếp',
+    slideAria: 'Kéo nút sang hết bên phải để xác nhận đã nhận',
+    sizeSej: 'Như 7-Eleven', sizeMedium: 'Vừa', sizeLarge: 'Lớn', hSize: 'Cỡ mã vạch',
+    sizeHint: '"Như 7-Eleven" giống hệt kích thước trên trang payment.sej.co.jp (245 × 56). Máy quét khó đọc thì thử cỡ khác. Trên màn hình mã vạch cũng đổi được cỡ.',
+    hConfirm: 'Cách xác nhận "Đã nhận"', confirmSlide: 'Vuốt ngang', confirmButton: 'Bấm nút',
+    confirmHint: 'Vuốt ngang: phải kéo nút tròn hết sang bên phải mới tính là đã nhận, nên không lo bấm nhầm.',
+    hScan: 'Khi quét thùng bằng camera', optOcr: 'Đọc dãy số in trên thùng (OCR), lần đầu tải khoảng 6 MB',
+    optBeep: 'Kêu "bíp" khi khớp đơn', optRescan: 'Xác nhận "Đã nhận" xong tự mở camera cho thùng tiếp theo',
+    ocrBoxLabel: 'Dãy số trên thùng vào khung này', torchOff: 'Đèn: tắt', torchOn: 'Đèn: bật', zoomIn: 'Phóng to', zoomOut: 'Thu nhỏ',
+    copyUnmatched: 'Sao chép mã chưa khớp', logHead: 'Mã đã đọc nhưng chưa khớp đơn:',
+    copied: 'Đã sao chép {n} mã. Dán gửi lại để tìm cách ghép với đơn.',
+    scanDone: 'Kiện {n} đã nhận lúc {t} (khung xanh dương).\nĐưa camera sang thùng khác.',
+    scanNone: 'Thấy {n} mã nhưng chưa khớp đơn nào (khung vàng). Thử mã khác trên thùng.',
+    engineFail: 'không tải được bộ quét', ocrEngineFail: 'không tải được bộ đọc số',
+    ocrRead: 'Đọc được số: {d}\nChưa khớp đơn nào, giữ máy thẳng và gần hơn một chút.',
+    ocrDone: 'Kiện {n} đã nhận lúc {t}.\nĐưa camera sang thùng khác.', ocrNear: 'Gần khớp {n}, giữ yên máy…',
+    ocrLoading: 'Đang tải bộ đọc số (lần đầu khoảng 6 MB, lần sau mở ngay)…',
+    ocrReady: 'Đưa dãy số trên thùng vào khung trắng. Xuôi hay ngược đều đọc được.',
+    ocrLoadFail: 'Không tải được bộ đọc số ({e}). Vẫn quét mã vạch được.',
+    cameraOpening: 'Đang mở camera…', scanReady: 'Chĩa camera vào nhãn trên thùng, app đọc mọi mã vạch trong khung hình.',
+    cameraDenied: 'Chưa được phép dùng camera.\nBấm Đóng rồi bấm nút quét lại và chọn "Cho phép". Nếu không hỏi nữa: Cài đặt > Safari > Camera > Hỏi.',
+    cameraFail: 'Không mở được camera: {e}',
+  },
+  ja: {
+    appName: '7net 受取', pinPh: 'PIN を入力', remember: 'この端末に保存', unlock: 'ロック解除', decrypting: '復号中…',
+    pinFirst: 'PIN を入力してください', pinWrong: 'PIN が違います', pinChanged: 'PIN が変更されました。もう一度入力してください。',
+    noCrypto: 'このブラウザは復号に対応していません。https のリンクで開いてください。',
+    loadFail: 'データを読み込めません。通信状況を確認して開き直してください。', loadFailToast: 'データを読み込めません。通信状況を確認してください',
+    offlineToast: 'オフラインのため保存済みのデータを表示中', reloaded: '最新のデータを読み込みました',
+    searchPh: '箱の番号を入力', searchAria: '箱の番号で検索', clearAria: '検索をクリア', scanAria: 'カメラで箱をスキャン',
+    fTodo: '未受取', fAll: 'すべて', fDone: '受取済み', prodAria: '商品で絞り込み', allProducts: '全商品',
+    settings: '設定', reload: '再読込', lock: 'ロック', undo: '元に戻す', close: '閉じる', done: '完了',
+    due: '期限 {d}', dueUnknown: '期限不明', overdue: '期限切れ {d}', dueToday: '本日まで', dueTomorrow: '明日まで',
+    showCode: 'バーコードを表示', showAgain: 'バーコードを再表示', codeShort: 'コード', mark: '受取済みにする', unmark: '受取済みを取り消す',
+    markedAt: 'この荷物は {t} に受取済みにしました', oneMatch: '1 件一致',
+    summary: '残り <b>{left}/{total}</b> 件', summaryDue: ' · 支払い合計 <b>¥{due}</b>',
+    sampleNote: 'これはテスト用のサンプルデータです（実際の注文ではありません）。main.py を実行すると実データに置き換わります。',
+    offlineNote: '最新版を読み込めないため、保存済みのデータを表示しています。', updated: 'データ {d} · {n} 件',
+    emptyFilter: 'このタブには荷物がありません', emptyQuery: 'この番号に一致する荷物はありません',
+    elsewhere: 'この店舗にはありませんが、別の店舗に {n} 件あります', switchTo: '{s} に切り替え',
+    markedToast: '{n} を受取済みにしました', barcodeAria: 'バーコード {n}',
+    sheetHint: 'この画面を店員さんに見せてください', pay: 'お支払い', fallbackLink: '7-Eleven のページを開く（予備）',
+    okNext: '受取済み · 次の荷物へ', okRescan: '受取済み · 次の箱をスキャン',
+    slideAria: 'つまみを右端までスライドすると受取済みになります',
+    sizeSej: 'セブンと同じ', sizeMedium: '中', sizeLarge: '大', hSize: 'バーコードのサイズ',
+    sizeHint: '「セブンと同じ」は payment.sej.co.jp のページと同じサイズ（245 × 56）です。読み取りにくい場合は別のサイズを試してください。バーコード画面でも変更できます。',
+    hConfirm: '「受取済み」の確定方法', confirmSlide: 'スライド', confirmButton: 'ボタン',
+    confirmHint: 'スライド：つまみを右端まで動かしたときだけ受取済みになるので、押し間違いを防げます。',
+    hScan: 'カメラで箱をスキャンするとき', optOcr: '箱に印字された番号を読み取る（OCR、初回のみ約 6 MB ダウンロード）',
+    optBeep: '一致したらビープ音を鳴らす', optRescan: '「受取済み」の後、次の箱のためにカメラを自動で開く',
+    ocrBoxLabel: '箱の番号をこの枠に入れてください', torchOff: 'ライト: オフ', torchOn: 'ライト: オン', zoomIn: 'ズーム', zoomOut: 'ズーム解除',
+    copyUnmatched: '一致しなかったコードをコピー', logHead: '読み取れたが注文と一致しなかったコード：',
+    copied: '{n} 件のコードをコピーしました。貼り付けて送ると照合方法を調べられます。',
+    scanDone: '荷物 {n} は {t} に受取済みです（青枠）。\n別の箱にカメラを向けてください。',
+    scanNone: 'コードが {n} 件見つかりましたが、どの注文とも一致しません（黄枠）。箱の別のコードを試してください。',
+    engineFail: 'スキャナーを読み込めません', ocrEngineFail: '番号リーダーを読み込めません',
+    ocrRead: '読み取った番号：{d}\n一致する注文がありません。カメラをまっすぐ、少し近づけてください。',
+    ocrDone: '荷物 {n} は {t} に受取済みです。\n別の箱にカメラを向けてください。', ocrNear: '{n} とほぼ一致、そのまま動かさないでください…',
+    ocrLoading: '番号リーダーを読み込み中（初回のみ約 6 MB、次回からはすぐ開きます）…',
+    ocrReady: '箱の番号を白い枠に入れてください。上下逆さでも読み取れます。',
+    ocrLoadFail: '番号リーダーを読み込めません（{e}）。バーコードのスキャンは使えます。',
+    cameraOpening: 'カメラを起動中…', scanReady: '箱のラベルにカメラを向けてください。画面内のバーコードをすべて読み取ります。',
+    cameraDenied: 'カメラの使用が許可されていません。\n「閉じる」を押してからスキャンボタンをもう一度押し、「許可」を選んでください。表示されない場合：設定 > Safari > カメラ > 確認。',
+    cameraFail: 'カメラを起動できません：{e}',
+  },
+};
+function t(key, vars) {
+  const s = (TEXT[settings.lang] || TEXT.vi)[key] ?? TEXT.vi[key] ?? key;
+  return vars ? s.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '') : s;
+}
+// Chữ cố định trong HTML: data-t (nội dung), data-t-ph (placeholder), data-t-aria (aria-label)
+function applyLang() {
+  document.documentElement.lang = settings.lang;
+  document.title = t('appName');
+  document.querySelectorAll('[data-t]').forEach(el => { el.textContent = t(el.dataset.t); });
+  document.querySelectorAll('[data-t-ph]').forEach(el => { el.placeholder = t(el.dataset.tPh); });
+  document.querySelectorAll('[data-t-aria]').forEach(el => { el.setAttribute('aria-label', t(el.dataset.tAria)); });
+}
 
 let blob = null, cryptoKey = null, data = null, offline = false, lastFetch = 0;
 let done = readDone();
@@ -361,11 +508,11 @@ async function savedKey(b) {
 }
 
 async function start() {
-  if (!window.crypto || !crypto.subtle) { showLock('Trình duyệt không hỗ trợ giải mã. Hãy mở bằng link https.'); return; }
+  if (!window.crypto || !crypto.subtle) { showLock(t('noCrypto')); return; }
   try {
     ({ blob, offline } = await fetchBlob());
   } catch (err) {
-    showLock('Không tải được dữ liệu. Kiểm tra mạng rồi mở lại.'); return;
+    showLock(t('loadFail')); return;
   }
   try {
     cryptoKey = cryptoKey || await savedKey(blob);
@@ -380,18 +527,18 @@ async function reload(silent) {
   try {
     ({ blob, offline } = await fetchBlob());
   } catch (err) {
-    if (!silent) toast('Không tải được dữ liệu, kiểm tra mạng');
+    if (!silent) toast(t('loadFailToast'));
     return;
   }
   try {
     data = await decrypt(cryptoKey, blob);
   } catch (err) {
     cryptoKey = null; storage.del(KEY.key);
-    showLock('PIN đã đổi, hãy nhập lại.');
+    showLock(t('pinChanged'));
     return;
   }
   showApp();
-  if (!silent) toast(offline ? 'Không có mạng, đang dùng bản đã lưu' : 'Đã tải dữ liệu mới');
+  if (!silent) toast(t(offline ? 'offlineToast' : 'reloaded'));
 }
 
 // ---------- Màn hình ----------
@@ -413,9 +560,9 @@ function showApp() {
 $('lockForm').addEventListener('submit', async ev => {
   ev.preventDefault();
   const pin = $('pin').value.trim();
-  if (!pin) { $('lockMsg').textContent = 'Nhập PIN trước đã'; return; }
+  if (!pin) { $('lockMsg').textContent = t('pinFirst'); return; }
   if (!blob) { await start(); if (!blob) return; }
-  $('unlockBtn').textContent = 'Đang giải mã…';
+  $('unlockBtn').textContent = t('decrypting');
   try {
     const key = await deriveKey(pin, blob);
     data = await decrypt(key, blob);
@@ -427,9 +574,9 @@ $('lockForm').addEventListener('submit', async ev => {
     $('pin').value = '';
     showApp();
   } catch (err) {
-    $('lockMsg').textContent = 'PIN không đúng';
+    $('lockMsg').textContent = t('pinWrong');
   } finally {
-    $('unlockBtn').textContent = 'Mở khoá';
+    $('unlockBtn').textContent = t('unlock');
   }
 });
 $('pin').addEventListener('input', () => { $('lockMsg').textContent = ''; });
@@ -454,17 +601,17 @@ function daysUntil(iso) {
 }
 
 function deadlineHtml(o) {
-  if (!o.e) return o.er ? 'hạn ' + esc(o.er) : 'chưa rõ hạn';
+  if (!o.e) return o.er ? t('due', { d: esc(o.er) }) : t('dueUnknown');
   const days = daysUntil(o.e), md = o.e.slice(5).replace('-', '/');
-  if (days < 0) return `<span class="tag bad">quá hạn ${md}</span>`;
-  if (days === 0) return '<span class="tag bad">hết hạn hôm nay</span>';
-  if (days === 1) return `<span class="tag warn">hạn ngày mai</span>`;
-  return 'hạn ' + md;
+  if (days < 0) return `<span class="tag bad">${t('overdue', { d: md })}</span>`;
+  if (days === 0) return `<span class="tag bad">${t('dueToday')}</span>`;
+  if (days === 1) return `<span class="tag warn">${t('dueTomorrow')}</span>`;
+  return t('due', { d: md });
 }
 
 function showBtn(o, big) {
-  const label = big ? (done[o.n] ? 'Hiện lại mã vạch' : 'Hiện mã vạch') : 'Mã';
-  return `<button class="${big ? 'btn-primary' : 'open-sm'}" data-show="${esc(o.n)}" aria-label="Hiện mã vạch">${label}</button>`;
+  const label = big ? t(done[o.n] ? 'showAgain' : 'showCode') : t('codeShort');
+  return `<button class="${big ? 'btn-primary' : 'open-sm'}" data-show="${esc(o.n)}" aria-label="${t('showCode')}">${label}</button>`;
 }
 
 function rowHtml(o, q) {
@@ -475,14 +622,14 @@ function rowHtml(o, q) {
       <div class="meta">${d ? '<b class="got">✓ ' + fmtTime(d) + '</b> · ' : ''}${esc(o.ps)} · ${deadlineHtml(o)}${o.a ? ' · ¥' + o.a.toLocaleString('ja-JP') : ''}</div>
     </div>
     ${showBtn(o)}
-    <button class="check${d ? ' on' : ''}" data-toggle="${esc(o.n)}" aria-label="${d ? 'Bỏ đánh dấu' : 'Đánh dấu đã nhận'}">✓</button>
+    <button class="check${d ? ' on' : ''}" data-toggle="${esc(o.n)}" aria-label="${t(d ? 'unmark' : 'mark')}">✓</button>
   </div>`;
 }
 
 function hitHtml(o, q) {
   const d = done[o.n];
   return `<div class="hit${d ? ' is-done' : ''}">
-    <div class="hit-meta">${d ? 'Kiện này đã đánh dấu nhận lúc ' + fmtTime(d) : 'Khớp 1 kiện'} · ${esc(o.ps)} · ${deadlineHtml(o)}</div>
+    <div class="hit-meta">${d ? t('markedAt', { t: fmtTime(d) }) : t('oneMatch')} · ${esc(o.ps)} · ${deadlineHtml(o)}</div>
     <div class="num">${numHtml(o.n, q)}</div>
     ${showBtn(o, true)}
   </div>`;
@@ -511,7 +658,7 @@ function render() {
   const prods = [...new Set(inStore.map(o => o.ps))];
   if (!prods.includes(view.prod)) view.prod = '';
   $('prod').hidden = prods.length < 2;
-  $('prod').innerHTML = '<option value="">Tất cả SP</option>' +
+  $('prod').innerHTML = `<option value="">${t('allProducts')}</option>` +
     prods.map(p => `<option value="${esc(p)}"${p === view.prod ? ' selected' : ''}>${esc(p)}</option>`).join('');
 
   const q = digits($('q').value);
@@ -535,7 +682,8 @@ function render() {
   const left = scope.filter(o => !done[o.n]);
   const due = left.reduce((sum, o) => sum + (o.a || 0), 0);
   $('summary').hidden = !!q;
-  $('summary').innerHTML = `Còn <b>${left.length}/${scope.length}</b> kiện` + (due ? ` · cần trả <b>¥${due.toLocaleString('ja-JP')}</b>` : '');
+  $('summary').innerHTML = t('summary', { left: left.length, total: scope.length }) +
+    (due ? t('summaryDue', { due: due.toLocaleString('ja-JP') }) : '');
 
   $('hit').innerHTML = q && rows.length === 1 ? hitHtml(rows[0], q) : '';
   $('list').innerHTML = rows.length ? rows.map(o => rowHtml(o, q)).join('') : emptyHtml(q);
@@ -543,20 +691,20 @@ function render() {
   $('list').classList.toggle('done-tab', !q && view.filter === 'done');
 
   const notes = [];
-  if (data.sample) notes.push('Đây là DỮ LIỆU MẪU để thử, không phải đơn thật. Chạy main.py sẽ thay bằng đơn thật.');
-  if (offline) notes.push('Không tải được bản mới, đang dùng dữ liệu đã lưu.');
+  if (data.sample) notes.push(t('sampleNote'));
+  if (offline) notes.push(t('offlineNote'));
   $('banner').hidden = !notes.length;
   $('banner').textContent = notes.join(' ');
-  $('updated').textContent = `Dữ liệu ${data.updated} · ${data.orders.length} đơn`;
+  $('updated').textContent = t('updated', { d: data.updated, n: data.orders.length });
 }
 
 function emptyHtml(q) {
-  if (!q) return '<div class="empty">Không có kiện nào ở mục này</div>';
+  if (!q) return `<div class="empty">${t('emptyFilter')}</div>`;
   const elsewhere = data.orders.filter(o => o.s !== view.store && o.n.includes(q));
-  if (!elsewhere.length) return '<div class="empty">Không có kiện nào khớp số này</div>';
+  if (!elsewhere.length) return `<div class="empty">${t('emptyQuery')}</div>`;
   const other = elsewhere[0].s;
-  return `<div class="empty">Không có ở cửa hàng này, nhưng có ${elsewhere.length} kiện khớp ở
-          <br><button class="chip" data-store="${esc(other)}">Chuyển sang ${esc(other)}</button></div>`;
+  return `<div class="empty">${t('elsewhere', { n: elsewhere.length })}
+          <br><button class="chip" data-store="${esc(other)}">${t('switchTo', { s: esc(other) })}</button></div>`;
 }
 
 // ---------- Thao tác ----------
@@ -592,7 +740,7 @@ function nw7Svg(num) {
     if (i < text.length - 1) x += 1;  // khoảng nghỉ giữa 2 ký tự
   });
   return `<svg viewBox="0 0 ${x + QUIET} ${H}" preserveAspectRatio="none" shape-rendering="crispEdges" role="img"
-              aria-label="Mã vạch ${num}"><g fill="#000">${bars}</g></svg>`;
+              aria-label="${t('barcodeAria', { n: num })}"><g fill="#000">${bars}</g></svg>`;
 }
 const fmtSlip = n => n.length === 13 ? `${n.slice(0, 4)}-${n.slice(4, 9)}-${n.slice(9)}` : n;
 
@@ -602,14 +750,14 @@ function showSheet(n, fromScan) {
   if (!o) return;
   sheetSlip = n;
   sheetFromScan = !!fromScan;
-  // Mở từ máy quét -> bấm "Đã nhận" sẽ mở lại camera ngay cho thùng tiếp theo (nếu bật trong Cài đặt)
-  $('sheetOk').textContent = sheetFromScan && settings.autoRescan ? 'Đã nhận · quét thùng tiếp' : 'Đã nhận · kiện tiếp theo';
+  setOkLabel();
+  resetSlide();
   $('barcode').innerHTML = nw7Svg(n);
   $('sheetNum').textContent = fmtSlip(n);
   $('sheetAmount').textContent = o.a ? '¥' + o.a.toLocaleString('ja-JP') : '—';
   $('sheetMeta').innerHTML = `${esc(o.s)} · ${esc(o.ps)} · ${deadlineHtml(o)}`;
   $('sheetDone').hidden = !done[n];
-  $('sheetDone').textContent = done[n] ? 'Kiện này đã đánh dấu nhận lúc ' + fmtTime(done[n]) : '';
+  $('sheetDone').textContent = done[n] ? t('markedAt', { t: fmtTime(done[n]) }) : '';
   $('sheetLink').hidden = !o.u;
   $('sheetLink').href = o.u || '#';
   if (document.activeElement) document.activeElement.blur();
@@ -625,18 +773,78 @@ function closeSheet() {
   sheetFromScan = false;
   if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
 }
-$('sheetOk').addEventListener('click', () => {
+// Mở từ máy quét -> xác nhận "Đã nhận" sẽ mở lại camera ngay cho thùng tiếp theo (nếu bật trong Cài đặt)
+function setOkLabel() {
+  $('sheetOk').textContent = $('slideText').textContent = t(sheetFromScan && settings.autoRescan ? 'okRescan' : 'okNext');
+}
+function confirmReceived() {
   const n = sheetSlip, rescan = sheetFromScan && settings.autoRescan;
-  if (n && !done[n]) { done[n] = Date.now(); saveDone(); toast('Đã đánh dấu nhận ' + n.slice(-7), n); }
+  if (!n) return;
+  if (!done[n]) { done[n] = Date.now(); saveDone(); toast(t('markedToast', { n: n.slice(-7) }), n); }
   closeSheet();
   $('q').value = '';
   render();
   if (rescan) openScanner(); else $('q').focus();
-});
+}
+$('sheetOk').addEventListener('click', confirmReceived);
 $('sheetClose').addEventListener('click', closeSheet);
 
+// ---------- Thanh vuốt "Đã nhận": phải kéo nút tròn tới sát mép phải rồi thả tay mới tính, chạm nhầm không sao ----------
+const slide = { x: 0, max: 0, startX: 0, pointer: null, moved: false };
+function setSlideX(x) {
+  slide.x = x;
+  $('slideKnob').style.transform = `translateX(${x}px)`;
+  $('slideLabel').style.opacity = String(Math.max(0, 1 - x / (slide.max * 0.6 || 1)));
+}
+function resetSlide() {
+  slide.pointer = null;
+  $('slide').classList.remove('ok');
+  $('slideKnob').classList.remove('back');
+  setSlideX(0);
+}
+function endSlide(ev) {
+  if (ev.pointerId !== slide.pointer) return;
+  slide.pointer = null;
+  // Chỉ tính khi thả tay ở sát mép phải; iOS huỷ cử chỉ giữa chừng (pointercancel) thì luôn trả nút về
+  if (ev.type === 'pointerup' && slide.x >= slide.max * 0.94) {
+    setSlideX(slide.max);
+    $('slide').classList.add('ok');
+    confirmReceived();  // Gọi ngay trong lúc thả tay để iOS vẫn cho mở camera / bàn phím
+    return;
+  }
+  const knob = $('slideKnob');
+  knob.classList.add('back');
+  setSlideX(0);
+  // Chỉ chạm mà không kéo: nút nhích sang phải một chút để gợi ý là phải vuốt
+  if (!slide.moved && knob.animate) {
+    knob.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(36px)' }, { transform: 'translateX(0)' }],
+      { duration: 500, easing: 'ease-out' });
+  }
+}
+$('slideKnob').addEventListener('pointerdown', ev => {
+  if (slide.pointer !== null || $('slide').classList.contains('ok')) return;
+  const knob = $('slideKnob');
+  slide.pointer = ev.pointerId;
+  slide.max = $('slide').clientWidth - knob.offsetWidth - 8;  // trừ lề 4px mỗi bên
+  slide.startX = ev.clientX;
+  slide.moved = false;
+  knob.classList.remove('back');
+  try { knob.setPointerCapture(ev.pointerId); } catch (e) {}
+  ev.preventDefault();
+});
+$('slideKnob').addEventListener('pointermove', ev => {
+  if (ev.pointerId !== slide.pointer) return;
+  const x = Math.max(0, Math.min(slide.max, ev.clientX - slide.startX));
+  if (x > 6) slide.moved = true;
+  setSlideX(x);
+});
+$('slideKnob').addEventListener('pointerup', endSlide);
+$('slideKnob').addEventListener('pointercancel', endSlide);
+$('slideKnob').addEventListener('keydown', ev => {
+  if (ev.key === 'ArrowRight' || ev.key === 'End') confirmReceived();
+});
+
 // ---------- Cài đặt (lưu riêng trên máy này) ----------
-let settings = readSettings();
 function readSettings() {
   try { return { ...DEFAULT_SETTINGS, ...JSON.parse(storage.get(KEY.settings) || '{}') }; } catch (e) { return { ...DEFAULT_SETTINGS }; }
 }
@@ -644,14 +852,18 @@ function setSetting(name, value) {
   settings[name] = value;
   storage.set(KEY.settings, JSON.stringify(settings));
   applySettings();
+  if (name === 'lang' && data) render();
 }
 function applySettings() {
+  applyLang();
   $('barcode').className = $('sizePreview').className = 'barcode size-' + settings.size;
-  document.querySelectorAll('[data-size]').forEach(b => b.classList.toggle('on', b.dataset.size === settings.size));
+  document.querySelectorAll('[data-set]').forEach(b => b.classList.toggle('on', settings[b.dataset.set] === b.dataset.val));
   $('optBeep').checked = settings.beep;
   $('optRescan').checked = settings.autoRescan;
   $('optOcr').checked = settings.ocr;
-  if (sheetSlip) $('sheetOk').textContent = sheetFromScan && settings.autoRescan ? 'Đã nhận · quét thùng tiếp' : 'Đã nhận · kiện tiếp theo';
+  $('sheetOk').hidden = settings.confirm === 'slide';
+  $('slide').hidden = settings.confirm !== 'slide';
+  if (sheetSlip) setOkLabel();
 }
 function openSettings() {
   const sample = data && data.orders.length ? data.orders[0].n : '0000000000000';
@@ -694,7 +906,7 @@ function loadScanEngine() {
       overrides: { locateFile: (path, prefix) => path.endsWith('.wasm') ? 'vendor/zxing_reader-3.1.5.wasm' : prefix + path },
       fireImmediately: true,
     }).then(resolve, reject);
-    s.onerror = () => reject(new Error('không tải được bộ quét'));
+    s.onerror = () => reject(new Error(t('engineFail')));
     document.head.appendChild(s);
   });
 }
@@ -731,14 +943,14 @@ function logUnmatched(text, format) {
 function showScanLog() {
   const log = readScanLog();
   $('scanLog').hidden = $('scanCopy').hidden = !log.length;
-  $('scanLog').textContent = 'Mã đã đọc nhưng chưa khớp đơn:\n' + log.slice(0, 3).map(e => `${e.f}: ${e.t}`).join('\n');
+  $('scanLog').textContent = t('logHead') + '\n' + log.slice(0, 3).map(e => `${e.f}: ${e.t}`).join('\n');
 }
 $('scanCopy').addEventListener('click', async () => {
   const log = readScanLog();
   const text = log.map(e => `${e.f}: ${e.t}`).join('\n');
   try {
     await navigator.clipboard.writeText(text);
-    scanMsg(`Đã sao chép ${log.length} mã. Dán gửi lại để tìm cách ghép với đơn.`);
+    scanMsg(t('copied', { n: log.length }));
   } catch (e) {
     scanMsg(text);
   }
@@ -800,8 +1012,8 @@ function handleResults(results, scale) {
   }
   drawMarks(marks, scale);
   if (match) { onMatch(match); return true; }
-  if (doneHit) scanMsg(`Kiện ${fmtSlip(doneHit.n)} đã nhận lúc ${fmtTime(done[doneHit.n])} (khung xanh dương).\nĐưa camera sang thùng khác.`);
-  else if (marks.length) scanMsg(`Thấy ${marks.length} mã nhưng chưa khớp đơn nào (khung vàng). Thử mã khác trên thùng.`);
+  if (doneHit) scanMsg(t('scanDone', { n: fmtSlip(doneHit.n), t: fmtTime(done[doneHit.n]) }));
+  else if (marks.length) scanMsg(t('scanNone', { n: marks.length }));
   return false;
 }
 
@@ -843,8 +1055,8 @@ async function startCamera() {
   torchOn = zoomed = false;
   $('torchBtn').hidden = !caps.torch;
   $('zoomBtn').hidden = !(caps.zoom && caps.zoom.max >= 1.5);
-  $('torchBtn').textContent = 'Đèn: tắt';
-  $('zoomBtn').textContent = 'Phóng to';
+  $('torchBtn').textContent = t('torchOff');
+  $('zoomBtn').textContent = t('zoomIn');
 }
 
 function stopCamera() {
@@ -862,7 +1074,7 @@ function applyTrack(constraint) {
 $('torchBtn').addEventListener('click', () => {
   torchOn = !torchOn;
   applyTrack({ torch: torchOn });
-  $('torchBtn').textContent = torchOn ? 'Đèn: bật' : 'Đèn: tắt';
+  $('torchBtn').textContent = t(torchOn ? 'torchOn' : 'torchOff');
 });
 $('zoomBtn').addEventListener('click', () => {
   const track = scanStream && scanStream.getVideoTracks()[0];
@@ -870,7 +1082,7 @@ $('zoomBtn').addEventListener('click', () => {
   const z = track.getCapabilities().zoom;
   zoomed = !zoomed;
   applyTrack({ zoom: zoomed ? Math.min(2, z.max) : Math.max(1, z.min) });
-  $('zoomBtn').textContent = zoomed ? 'Thu nhỏ' : 'Phóng to';
+  $('zoomBtn').textContent = t(zoomed ? 'zoomOut' : 'zoomIn');
 });
 
 // ---------- Đọc dãy số in trên thùng (OCR tesseract.js: đọc song song ảnh xuôi và ảnh xoay 180°) ----------
@@ -892,7 +1104,7 @@ function loadOcrEngine() {
         const s = document.createElement('script');
         s.src = OCR_DIR + 'tesseract.min.js';
         s.onload = resolve;
-        s.onerror = () => reject(new Error('không tải được bộ đọc số'));
+        s.onerror = () => reject(new Error(t('ocrEngineFail')));
         document.head.appendChild(s);
       });
     }
@@ -999,15 +1211,15 @@ function handleOcr(texts) {
   if (!best) {
     ocrPending = null;
     const longest = runs.sort((a, b) => b.length - a.length)[0];
-    if (longest) scanMsg(`Đọc được số: ${longest}\nChưa khớp đơn nào, giữ máy thẳng và gần hơn một chút.`);
+    if (longest) scanMsg(t('ocrRead', { d: longest }));
     return;
   }
   const o = best.order;
   // Khớp đủ ≥10 số không sai số nào thì nhận ngay; khớp gần đúng thì cần 2 lần đọc liên tiếp cùng ra 1 đơn
   const confirmed = (best.dist === 0 && best.len >= 10) || (ocrPending && ocrPending.n === o.n);
   ocrPending = { n: o.n };
-  if (done[o.n]) { scanMsg(`Kiện ${fmtSlip(o.n)} đã nhận lúc ${fmtTime(done[o.n])}.\nĐưa camera sang thùng khác.`); return; }
-  if (!confirmed) { scanMsg(`Gần khớp ${fmtSlip(o.n)}, giữ yên máy…`); return; }
+  if (done[o.n]) { scanMsg(t('ocrDone', { n: fmtSlip(o.n), t: fmtTime(done[o.n]) })); return; }
+  if (!confirmed) { scanMsg(t('ocrNear', { n: fmtSlip(o.n) })); return; }
   $('ocrBox').classList.add('hit');
   onMatch(o);
 }
@@ -1031,13 +1243,13 @@ function startOcr(gen) {
   $('ocrBox').hidden = false;
   $('ocrBox').classList.remove('near', 'hit');
   ocrPending = null;
-  if (!ocrScheduler) scanMsg('Đang tải bộ đọc số (lần đầu khoảng 6 MB, lần sau mở ngay)…');
+  if (!ocrScheduler) scanMsg(t('ocrLoading'));
   loadOcrEngine().then(() => {
     if (gen !== scanGen) return;
-    scanMsg('Đưa dãy số trên thùng vào khung trắng. Xuôi hay ngược đều đọc được.');
+    scanMsg(t('ocrReady'));
     ocrLoop(gen);
   }, err => {
-    if (gen === scanGen) scanMsg('Không tải được bộ đọc số (' + err.message + '). Vẫn quét mã vạch được.');
+    if (gen === scanGen) scanMsg(t('ocrLoadFail', { e: err.message }));
   });
 }
 
@@ -1050,20 +1262,20 @@ async function openScanner() {
   document.body.classList.add('noscroll');
   drawMarks([], 1);
   showScanLog();
-  scanMsg('Đang mở camera…');
+  scanMsg(t('cameraOpening'));
   try {
     await Promise.all([loadScanEngine(), startCamera()]);
     if (gen !== scanGen) return;  // Đã bấm Đóng trong lúc chờ
     await $('scanVideo').play().catch(() => {});
-    scanMsg('Chĩa camera vào nhãn trên thùng, app đọc mọi mã vạch trong khung hình.');
+    scanMsg(t('scanReady'));
     scanning = true;
     scanLoop(gen);
     $('ocrBox').hidden = !settings.ocr;
     if (settings.ocr) startOcr(gen);
   } catch (err) {
     scanMsg(err && err.name === 'NotAllowedError'
-      ? 'Chưa được phép dùng camera.\nBấm Đóng rồi bấm nút quét lại và chọn "Cho phép". Nếu không hỏi nữa: Cài đặt > Safari > Camera > Hỏi.'
-      : 'Không mở được camera: ' + (err && (err.message || err.name) || err));
+      ? t('cameraDenied')
+      : t('cameraFail', { e: err && (err.message || err.name) || err }));
   }
 }
 
@@ -1095,9 +1307,9 @@ document.addEventListener('click', ev => {
     showSheet(show.dataset.show);
     return;
   }
-  const size = ev.target.closest('[data-size]');
-  if (size) {
-    setSetting('size', size.dataset.size);
+  const opt = ev.target.closest('[data-set]');
+  if (opt) {
+    setSetting(opt.dataset.set, opt.dataset.val);
     return;
   }
   const toggle = ev.target.closest('[data-toggle]');
